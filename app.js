@@ -1,0 +1,718 @@
+const STORAGE_KEY = "concert-memory-vault-figma-site-v2";
+
+const seedConcerts = [
+  {
+    id: "newjeans-2025",
+    artist: "NewJeans",
+    tour: "BUNNIES CAMP 2025 TOKYO DOME",
+    date: "2025-01-11",
+    venue: "Inspire Arena",
+    city: "仁川",
+    country: "韩国",
+    price: 143000,
+    currency: "KRW",
+    rating: 4,
+    memory: "OMG 开场炸裂，Hanni solo 部分太惊艳。整体编舞和舞台设计都非常精致，比预期好太多。",
+    poster: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=85"
+  },
+  {
+    id: "iu-2024",
+    artist: "IU（李知恩）",
+    tour: "H.E.R. WORLD TOUR",
+    date: "2024-11-03",
+    venue: "奥林匹克体操馆",
+    city: "首尔",
+    country: "韩国",
+    price: 132000,
+    currency: "KRW",
+    rating: 5,
+    memory: "安可时大家举起灯，声音很轻，但特别满。",
+    poster: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85"
+  },
+  {
+    id: "blackpink-2024",
+    artist: "BLACKPINK",
+    tour: "WORLD TOUR [BORN PINK]",
+    date: "2024-09-15",
+    venue: "首尔世界杯体育场",
+    city: "首尔",
+    country: "韩国",
+    price: 165000,
+    currency: "KRW",
+    rating: 5,
+    memory: "烟火和鼓点一起落下来的那一秒，完全不想眨眼。",
+    poster: "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=900&q=85"
+  },
+  {
+    id: "coldplay-2024",
+    artist: "Coldplay",
+    tour: "Music of the Spheres World Tour",
+    date: "2024-07-20",
+    venue: "国家体育场（鸟巢）",
+    city: "北京",
+    country: "中国",
+    price: 1380,
+    currency: "CNY",
+    rating: 5,
+    memory: "腕带一起亮起，像把星空搬进了体育场。",
+    poster: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=900&q=85"
+  },
+  {
+    id: "taylor-2024",
+    artist: "Taylor Swift",
+    tour: "The Eras Tour",
+    date: "2024-06-22",
+    venue: "国立竞技场",
+    city: "东京",
+    country: "日本",
+    price: 19800,
+    currency: "JPY",
+    rating: 4,
+    memory: "交换手链交换到散场，像和陌生人共享了一整个夏天。",
+    poster: "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=900&q=85"
+  }
+];
+
+const state = {
+  concerts: loadConcerts(),
+  filters: { search: "", sort: "newest", year: "全部", artist: "全部" },
+  screen: "concerts",
+  calendarDate: new Date(2025, 0, 1),
+  calendarMode: "month",
+  wrappedYear: "2025",
+  wrapSlide: 0,
+  rating: 5
+};
+
+const el = {
+  screens: document.querySelectorAll("[data-screen]"),
+  nav: document.querySelectorAll("[data-nav]"),
+  concertCount: document.querySelector("#concertCount"),
+  calendarCount: document.querySelector("#calendarCount"),
+  summaryCount: document.querySelector("#summaryCount"),
+  grid: document.querySelector("#concertGrid"),
+  search: document.querySelector("#searchInput"),
+  filterToggle: document.querySelector("#filterToggle"),
+  filterPanel: document.querySelector("#filterPanel"),
+  yearChips: document.querySelector("#yearChips"),
+  artistChips: document.querySelector("#artistChips"),
+  monthTitle: document.querySelector("#monthTitle"),
+  calendarCard: document.querySelector(".calendar-card"),
+  monthCard: document.querySelector(".month-card"),
+  calendarGrid: document.querySelector("#calendarGrid"),
+  yearCalendar: document.querySelector("#yearCalendar"),
+  dayEvents: document.querySelector("#dayEvents"),
+  insightGrid: document.querySelector("#insightGrid"),
+  totalShows: document.querySelector("#totalShows"),
+  spendStats: document.querySelector("#spendStats"),
+  rankingStats: document.querySelector("#rankingStats"),
+  countryStats: document.querySelector("#countryStats"),
+  monthStats: document.querySelector("#monthStats"),
+  yearStats: document.querySelector("#yearStats"),
+  wrapYears: document.querySelector("#wrapYears"),
+  wrappedCard: document.querySelector("#wrappedCard"),
+  form: document.querySelector("#concertForm"),
+  ratingInput: document.querySelector("#ratingInput"),
+  pasteCard: document.querySelector("#pasteCard"),
+  pasteText: document.querySelector("#pasteText"),
+  dialog: document.querySelector("#detailDialog"),
+  detail: document.querySelector("#detailContent"),
+  toast: document.querySelector("#toast")
+};
+
+init();
+
+function init() {
+  bindNavigation();
+  bindFilters();
+  bindCalendar();
+  bindForm();
+  renderStaticControls();
+  render();
+}
+
+function bindNavigation() {
+  el.nav.forEach((button) => button.addEventListener("click", () => setScreen(button.dataset.nav)));
+}
+
+function setScreen(screen) {
+  state.screen = screen;
+  el.screens.forEach((item) => item.classList.toggle("active", item.dataset.screen === screen));
+  el.nav.forEach((button) => button.classList.toggle("active", button.dataset.nav === screen));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  render();
+}
+
+function bindFilters() {
+  el.filterToggle.addEventListener("click", () => {
+    el.filterPanel.hidden = !el.filterPanel.hidden;
+  });
+  el.search.addEventListener("input", (event) => {
+    state.filters.search = event.target.value.trim().toLowerCase();
+    renderConcerts();
+  });
+  document.querySelectorAll("[data-sort]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.filters.sort = button.dataset.sort;
+      document.querySelectorAll("[data-sort]").forEach((item) => item.classList.toggle("active", item === button));
+      renderConcerts();
+    });
+  });
+}
+
+function bindCalendar() {
+  document.querySelector("#prevMonth").addEventListener("click", () => {
+    const step = state.calendarMode === "year" ? 12 : 1;
+    state.calendarDate.setMonth(state.calendarDate.getMonth() - step);
+    renderCalendar();
+  });
+  document.querySelector("#nextMonth").addEventListener("click", () => {
+    const step = state.calendarMode === "year" ? 12 : 1;
+    state.calendarDate.setMonth(state.calendarDate.getMonth() + step);
+    renderCalendar();
+  });
+  document.querySelectorAll("[data-calendar-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.calendarMode = button.dataset.calendarMode;
+      document.querySelectorAll("[data-calendar-mode]").forEach((item) => item.classList.toggle("active", item === button));
+      renderCalendar();
+    });
+  });
+}
+
+function bindForm() {
+  for (let index = 1; index <= 5; index += 1) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "★";
+    button.className = "active";
+    button.addEventListener("click", () => {
+      state.rating = index;
+      el.form.rating.value = String(index);
+      renderRatingInput();
+    });
+    el.ratingInput.append(button);
+  }
+
+  document.querySelectorAll("[data-form-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll("[data-form-mode]").forEach((item) => item.classList.toggle("active", item === button));
+      el.pasteCard.hidden = button.dataset.formMode !== "paste";
+    });
+  });
+
+  document.querySelector("#parsePaste").addEventListener("click", parsePastedText);
+
+  el.form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const data = new FormData(el.form);
+    const editingId = clean(data.get("editingId"));
+    const existing = state.concerts.find((item) => item.id === editingId);
+    const concert = {
+      id: existing?.id || `concert-${Date.now()}`,
+      artist: clean(data.get("artist")),
+      tour: clean(data.get("tour")) || "Untitled Tour",
+      date: data.get("date"),
+      venue: clean(data.get("venue")),
+      city: clean(data.get("city")),
+      country: clean(data.get("country")),
+      price: Number(data.get("price")) || 0,
+      currency: data.get("currency") || "KRW",
+      rating: Number(data.get("rating")) || 5,
+      memory: clean(data.get("memory")),
+      poster: clean(data.get("poster")) || existing?.poster || posterFallback(clean(data.get("artist")))
+    };
+
+    if (!concert.artist || !concert.date || !concert.venue || !concert.city || !concert.country) {
+      showToast("请补全必填信息");
+      return;
+    }
+
+    state.concerts = existing
+      ? state.concerts.map((item) => item.id === existing.id ? concert : item)
+      : [concert, ...state.concerts];
+    saveConcerts();
+    resetForm();
+    showToast(existing ? "演唱会已更新" : "保存这场演唱会 🎵");
+    setScreen("concerts");
+  });
+
+  el.dialog.addEventListener("click", (event) => {
+    if (event.target === el.dialog) el.dialog.close();
+  });
+}
+
+function renderStaticControls() {
+  renderChips(el.yearChips, ["全部", ...unique(state.concerts.map((item) => yearOf(item.date))).sort((a, b) => b - a)], "year");
+  renderChips(el.artistChips, ["全部", ...unique(state.concerts.map((item) => item.artist)).sort()], "artist");
+  renderRatingInput();
+}
+
+function renderChips(container, values, key) {
+  container.querySelectorAll("button").forEach((button) => button.remove());
+  values.forEach((value) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `chip ${state.filters[key] === String(value) ? "active" : ""}`;
+    button.textContent = value;
+    button.addEventListener("click", () => {
+      state.filters[key] = String(value);
+      renderChips(container, values, key);
+      renderConcerts();
+    });
+    container.append(button);
+  });
+}
+
+function render() {
+  renderCounts();
+  if (state.screen === "concerts") renderConcerts();
+  if (state.screen === "calendar") renderCalendar();
+  if (state.screen === "summary") renderSummary();
+  if (state.screen === "wrapped") renderWrapped();
+}
+
+function renderCounts() {
+  el.concertCount.textContent = state.concerts.length;
+  el.calendarCount.textContent = state.concerts.length;
+  el.summaryCount.textContent = state.concerts.length;
+}
+
+function renderConcerts() {
+  const concerts = filteredConcerts();
+  el.grid.innerHTML = "";
+  if (!concerts.length) {
+    el.grid.innerHTML = `<div class="empty">没有匹配的演唱会</div>`;
+    return;
+  }
+  concerts.forEach((concert) => {
+    const button = document.createElement("button");
+    button.className = "concert-card";
+    button.type = "button";
+    button.innerHTML = `
+      <div class="poster">
+        <img src="${concert.poster}" alt="${concert.artist}" />
+        <div class="date-badge">
+          <small>${monthOf(concert.date)}月</small>
+          <strong>${dayOf(concert.date)}</strong>
+          <span>${yearOf(concert.date)}</span>
+        </div>
+        <div class="rating-badge">${stars(concert.rating)}</div>
+      </div>
+      <div class="card-body">
+        <h3>${concert.artist}</h3>
+        <p class="tour">${concert.tour}</p>
+        <p class="venue">📍 ${concert.venue}，${concert.city}</p>
+        <p class="price">${concert.currency} ${formatNumber(concert.price)}</p>
+      </div>
+    `;
+    button.addEventListener("click", () => openDetail(concert));
+    el.grid.append(button);
+  });
+}
+
+function filteredConcerts() {
+  const query = state.filters.search;
+  return state.concerts
+    .filter((concert) => {
+      const haystack = [concert.artist, concert.tour, concert.venue, concert.city, concert.country].join(" ").toLowerCase();
+      return (!query || haystack.includes(query))
+        && (state.filters.year === "全部" || String(yearOf(concert.date)) === state.filters.year)
+        && (state.filters.artist === "全部" || concert.artist === state.filters.artist);
+    })
+    .sort((a, b) => {
+      if (state.filters.sort === "oldest") return new Date(a.date) - new Date(b.date);
+      if (state.filters.sort === "artist") return a.artist.localeCompare(b.artist, "zh-CN");
+      return new Date(b.date) - new Date(a.date);
+    });
+}
+
+function renderCalendar() {
+  const year = state.calendarDate.getFullYear();
+  const month = state.calendarDate.getMonth();
+  el.monthTitle.textContent = state.calendarMode === "year" ? `${year}年` : `${year}年 ${monthNames()[month]}`;
+  el.calendarCard.hidden = state.calendarMode === "year";
+  el.yearCalendar.hidden = state.calendarMode !== "year";
+  el.dayEvents.innerHTML = "";
+  if (state.calendarMode === "year") {
+    renderYearCalendar(year);
+  } else {
+    renderMonthCalendar(year, month);
+  }
+}
+
+function renderMonthCalendar(year, month) {
+  el.calendarGrid.innerHTML = "";
+  const first = new Date(year, month, 1);
+  const days = new Date(year, month + 1, 0).getDate();
+  for (let i = 0; i < first.getDay(); i += 1) el.calendarGrid.append(document.createElement("span"));
+  for (let day = 1; day <= days; day += 1) {
+    const key = dateKey(year, month, day);
+    const events = state.concerts.filter((item) => item.date === key);
+    const button = document.createElement("button");
+    button.className = `day-cell ${isToday(year, month, day) ? "today" : ""} ${events.length ? "poster-day" : ""}`;
+    button.type = "button";
+    button.innerHTML = events.length
+      ? `<img src="${events[0].poster}" alt="${events[0].artist}" /><span>${day}</span>`
+      : `${day}`;
+    button.addEventListener("click", () => renderDayEvents(events, key));
+    el.calendarGrid.append(button);
+  }
+}
+
+function renderYearCalendar(year) {
+  el.yearCalendar.innerHTML = "";
+  monthNames().forEach((monthName, monthIndex) => {
+    const monthEvents = state.concerts.filter((item) => yearOf(item.date) === year && monthOf(item.date) === monthIndex + 1);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `year-month-card ${monthEvents.length ? "has-events" : ""}`;
+    card.innerHTML = monthEvents.length
+      ? `<img src="${monthEvents[0].poster}" alt="${monthName}" /><strong>${monthName}</strong><span>${monthEvents.length} 场</span>`
+      : `<strong>${monthName}</strong><span>暂无</span>`;
+    card.addEventListener("click", () => {
+      state.calendarMode = "month";
+      state.calendarDate = new Date(year, monthIndex, 1);
+      document.querySelectorAll("[data-calendar-mode]").forEach((item) => item.classList.toggle("active", item.dataset.calendarMode === "month"));
+      renderCalendar();
+    });
+    el.yearCalendar.append(card);
+  });
+}
+
+function renderDayEvents(events, key) {
+  el.dayEvents.innerHTML = "";
+  events.forEach((event) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "event-pill";
+    item.textContent = `${key} · ${event.artist} · ${event.venue}`;
+    item.addEventListener("click", () => openDetail(event));
+    el.dayEvents.append(item);
+  });
+}
+
+function renderSummary() {
+  const byArtist = countBy(state.concerts, "artist");
+  const byCity = countBy(state.concerts, "city");
+  const avg = average(state.concerts.map((item) => item.rating).filter(Boolean));
+  const busiest = topEntries(countBy(state.concerts, (item) => `${monthOf(item.date)}月`))[0];
+
+  el.insightGrid.innerHTML = `
+    ${insight("🎤", "最爱艺人", topEntries(byArtist)[0]?.[0] || "暂无", `看了 ${topEntries(byArtist)[0]?.[1] || 0} 场`, true)}
+    ${insight("🗓", "最忙的月份", busiest?.[0] || "暂无", `${busiest?.[1] || 0} 场演出`)}
+    ${insight("📍", "最常去城市", topEntries(byCity)[0]?.[0] || "暂无", `${topEntries(byCity)[0]?.[1] || 0} 场`)}
+    ${insight("⭐", "平均评分", `${avg.toFixed(1)} 分`, `${state.concerts.length} 条评分`)}
+  `;
+  el.totalShows.textContent = state.concerts.length;
+  renderSpendStats();
+  renderRankingStats(byArtist);
+  renderSimpleCount(el.countryStats, "🌍 足迹分布", countBy(state.concerts, "country"));
+  renderMonthStats();
+  renderSimpleCount(el.yearStats, "📅 逐年记录", countBy(state.concerts, (item) => yearOf(item.date)));
+}
+
+function insight(icon, label, value, detail, featured = false) {
+  return `<article class="insight ${featured ? "featured" : ""}">
+    <div class="icon">${icon}</div><span>${label}</span><strong>${value}</strong><small>${detail}</small>
+  </article>`;
+}
+
+function renderSpendStats() {
+  const priced = state.concerts.filter((item) => item.price);
+  const total = priced.reduce((sum, item) => sum + convertToDisplayCurrency(item), 0);
+  const avg = priced.length ? Math.round(total / priced.length) : 0;
+  el.spendStats.innerHTML = `
+    <h2>💰 消费统计</h2>
+    <div class="stat-row"><span>总价（折算展示）</span><strong>KRW ${formatNumber(total)}</strong></div>
+    <div class="stat-row"><span>平均票价</span><strong>KRW ${formatNumber(avg)}</strong></div>
+  `;
+}
+
+function renderRankingStats(byArtist) {
+  el.rankingStats.innerHTML = `<h2>🏆 艺人排行</h2>`;
+  topEntries(byArtist).forEach(([artist, count], index) => {
+    el.rankingStats.insertAdjacentHTML("beforeend", `<div class="stat-row"><span><b class="rank-num">${index + 1}</b>${artist}</span><strong>${count} 场</strong></div>`);
+  });
+}
+
+function renderSimpleCount(container, title, counts) {
+  container.innerHTML = `<h2>${title}</h2>`;
+  topEntries(counts).forEach(([name, count]) => {
+    container.insertAdjacentHTML("beforeend", `<div class="stat-row"><span>${name}</span><strong>${count}</strong></div>`);
+  });
+}
+
+function renderMonthStats() {
+  const counts = countBy(state.concerts, (item) => `${monthOf(item.date)}月`);
+  el.monthStats.innerHTML = `<h2>📆 月份分布</h2>`;
+  topEntries(counts).forEach(([name, count]) => {
+    el.monthStats.insertAdjacentHTML("beforeend", `<div class="stat-row"><span>${name}</span><strong>${count}</strong></div>`);
+  });
+}
+
+function renderWrapped() {
+  const years = unique(state.concerts.map((item) => String(yearOf(item.date)))).sort((a, b) => b - a);
+  if (!years.includes(state.wrappedYear)) state.wrappedYear = years[0] || String(new Date().getFullYear());
+  el.wrapYears.innerHTML = "";
+  years.forEach((year) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = state.wrappedYear === year ? "active" : "";
+    button.textContent = year;
+    button.addEventListener("click", () => {
+      state.wrappedYear = year;
+      state.wrapSlide = 0;
+      renderWrapped();
+    });
+    el.wrapYears.append(button);
+  });
+
+  const items = state.concerts.filter((item) => String(yearOf(item.date)) === state.wrappedYear);
+  if (!items.length) {
+    el.wrappedCard.innerHTML = `<div class="wrapped-empty"><span class="note">♫</span><h3>${state.wrappedYear} 年暂无记录</h3><p>记录这一年的演唱会后，这里会生成你的专属年终回顾。</p></div>`;
+    return;
+  }
+
+  const slides = makeWrappedSlides(items, state.wrappedYear);
+  state.wrapSlide = Math.min(state.wrapSlide, slides.length - 1);
+  const slide = slides[state.wrapSlide];
+  el.wrappedCard.innerHTML = `
+    <div class="wrap-dots">${slides.map((_, index) => `<span class="${index === state.wrapSlide ? "active" : ""}"></span>`).join("")}</div>
+    <article class="wrapped-story">
+      <span class="ghost-icon">${slide.ghost || "♪"}</span>
+      <p class="wrap-kicker">${slide.kicker}</p>
+      <div class="wrap-icon">${slide.icon}</div>
+      <h2>${slide.title}</h2>
+      <p class="wrap-body">${slide.body}</p>
+      ${slide.extra || ""}
+    </article>
+    <div class="wrap-controls">
+      <button type="button" ${state.wrapSlide === 0 ? "disabled" : ""} data-wrap-prev>‹ 上一页</button>
+      <span>${state.wrapSlide + 1} / ${slides.length}</span>
+      <button type="button" ${state.wrapSlide === slides.length - 1 ? "disabled" : ""} data-wrap-next>下一页 ›</button>
+    </div>
+  `;
+  document.querySelector("[data-wrap-prev]").addEventListener("click", () => {
+    state.wrapSlide -= 1;
+    renderWrapped();
+  });
+  document.querySelector("[data-wrap-next]").addEventListener("click", () => {
+    state.wrapSlide += 1;
+    renderWrapped();
+  });
+}
+
+function makeWrappedSlides(items, year) {
+  const byArtist = topEntries(countBy(items, "artist"))[0];
+  const month = topEntries(countBy(items, (item) => `${monthOf(item.date)}月`))[0];
+  const bestValue = items.reduce((best, item) => convertToDisplayCurrency(item) > convertToDisplayCurrency(best) ? item : best, items[0]);
+  const cities = unique(items.map((item) => item.city)).length;
+  const countries = unique(items.map((item) => item.country)).length;
+  const spend = items.reduce((sum, item) => sum + convertToDisplayCurrency(item), 0);
+  const avg = Math.round(spend / items.length);
+  return [
+    { kicker: `${year} · 年度回顾`, icon: "", title: String(items.length), body: `场现场演唱会`, extra: `<b class="wrap-pill">你去了 ${cities} 座城市 · ${countries} 个国家</b>`, ghost: "♫" },
+    { kicker: "你的年度艺人", icon: "🎤", title: byArtist[0], body: `你看了 Ta ${byArtist[1]} 场 演唱会`, ghost: "🏆" },
+    { kicker: "你最忙的月份", icon: "📅", title: month[0], body: `这个月你看了 ${month[1]} 场 演唱会`, ghost: "•" },
+    { kicker: "这一年你花在票上的钱", icon: "💰", title: `KRW ${formatNumber(spend)}`, body: `平均票价 KRW ${formatNumber(avg)}`, ghost: "◇" },
+    { kicker: "最舍得花钱的一票", icon: "💎", title: `KRW ${formatNumber(convertToDisplayCurrency(bestValue))}`, body: `${bestValue.artist} · ${bestValue.venue}`, extra: `<img class="wrap-thumb" src="${bestValue.poster}" alt="${bestValue.artist}" />`, ghost: "◇" },
+    { kicker: "你最常去的城市", icon: "📍", title: topEntries(countBy(items, "city"))[0][0], body: `${topEntries(countBy(items, "city"))[0][1]} 场现场`, ghost: "🎁" },
+    { kicker: `${year} · 谢谢你热爱音乐`, icon: "🎁", title: `${items.length}场现场`, body: `${cities} 座城市 · ${countries} 个国家`, extra: `<b class="wrap-pill">年度艺人<br>${byArtist[0]}</b><small>私密演唱会记忆库 · Concert Memory</small>`, ghost: "🎁" }
+  ];
+}
+
+function openDetail(concert) {
+  el.detail.innerHTML = `
+    <article class="detail-sheet">
+      <button class="detail-x" type="button" data-detail-close>×</button>
+      <img class="detail-cover" src="${concert.poster}" alt="${concert.artist}" />
+      <header class="detail-title">
+        <div>
+          <h2>${concert.artist}</h2>
+          <p>${concert.tour}</p>
+        </div>
+        <div class="detail-stars">${stars(concert.rating)}</div>
+      </header>
+      <p class="detail-date">${formatDateLong(concert.date)}</p>
+      <div class="detail-divider"></div>
+      <dl class="detail-list">
+        <div><dt>📍 场馆</dt><dd>${concert.venue}，${concert.city}，${concert.country}</dd></div>
+        <div><dt>💰 票价</dt><dd>${concert.currency} ${formatNumber(concert.price)}</dd></div>
+      </dl>
+      <div class="detail-divider"></div>
+      <section class="memory-box">
+        <h3>记忆碎片</h3>
+        <p>${concert.memory || "还没有写下记忆碎片。"}</p>
+      </section>
+      <div class="detail-actions">
+        <button type="button" data-detail-edit>编辑</button>
+        <button type="button" data-detail-delete>删除</button>
+      </div>
+    </article>
+  `;
+  el.detail.querySelector("[data-detail-close]").addEventListener("click", () => el.dialog.close());
+  el.detail.querySelector("[data-detail-edit]").addEventListener("click", () => editConcert(concert.id));
+  el.detail.querySelector("[data-detail-delete]").addEventListener("click", () => deleteConcert(concert.id));
+  el.dialog.showModal();
+}
+
+function editConcert(id) {
+  const concert = state.concerts.find((item) => item.id === id);
+  if (!concert) return;
+  el.dialog.close();
+  el.form.editingId.value = concert.id;
+  el.form.poster.value = concert.poster || "";
+  el.form.artist.value = concert.artist || "";
+  el.form.tour.value = concert.tour || "";
+  el.form.date.value = concert.date || "";
+  el.form.venue.value = concert.venue || "";
+  el.form.city.value = concert.city || "";
+  el.form.country.value = concert.country || "";
+  el.form.price.value = concert.price || "";
+  el.form.currency.value = concert.currency || "KRW";
+  el.form.memory.value = concert.memory || "";
+  state.rating = concert.rating || 5;
+  el.form.rating.value = String(state.rating);
+  renderRatingInput();
+  setScreen("add");
+}
+
+function deleteConcert(id) {
+  state.concerts = state.concerts.filter((item) => item.id !== id);
+  saveConcerts();
+  el.dialog.close();
+  render();
+  showToast("已删除记录");
+}
+
+function resetForm() {
+  el.form.reset();
+  el.form.editingId.value = "";
+  state.rating = 5;
+  el.form.rating.value = "5";
+  renderRatingInput();
+}
+
+function parsePastedText() {
+  const text = el.pasteText.value;
+  if (!text.trim()) {
+    showToast("先粘贴一点票务信息");
+    return;
+  }
+  const lines = text.split(/\n|,|，/).map((line) => line.trim()).filter(Boolean);
+  const joined = lines.join(" ");
+  if (lines[0]) el.form.artist.value = lines[0];
+  if (lines[1]) el.form.tour.value = lines[1];
+  const date = joined.match(/\d{4}[-/.]\d{1,2}[-/.]\d{1,2}/);
+  if (date) el.form.date.value = date[0].replaceAll("/", "-").replaceAll(".", "-");
+  const price = joined.match(/(KRW|JPY|CNY|USD|EUR|TWD|HKD|GBP)\s*([\d,]+)/i);
+  if (price) {
+    el.form.currency.value = price[1].toUpperCase();
+    el.form.price.value = price[2].replaceAll(",", "");
+  }
+  showToast("已尝试填入表单");
+}
+
+function renderRatingInput() {
+  el.ratingInput.querySelectorAll("button").forEach((button, index) => {
+    button.classList.toggle("active", index < state.rating);
+  });
+}
+
+function loadConcerts() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return Array.isArray(stored) && stored.length ? stored : seedConcerts;
+  } catch {
+    return seedConcerts;
+  }
+}
+
+function saveConcerts() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.concerts));
+  renderStaticControls();
+}
+
+function clean(value) {
+  return String(value || "").trim();
+}
+
+function yearOf(date) {
+  return new Date(`${date}T00:00:00`).getFullYear();
+}
+
+function monthOf(date) {
+  return new Date(`${date}T00:00:00`).getMonth() + 1;
+}
+
+function dayOf(date) {
+  return new Date(`${date}T00:00:00`).getDate();
+}
+
+function dateKey(year, month, day) {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function isToday(year, month, day) {
+  const now = new Date();
+  return now.getFullYear() === year && now.getMonth() === month && now.getDate() === day;
+}
+
+function stars(rating) {
+  return "★".repeat(Math.max(0, rating || 0)) + "☆".repeat(Math.max(0, 5 - (rating || 0)));
+}
+
+function monthNames() {
+  return ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
+}
+
+function formatDateLong(date) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short"
+  });
+}
+
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString("zh-CN");
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean).map(String))];
+}
+
+function countBy(items, key) {
+  return items.reduce((acc, item) => {
+    const name = typeof key === "function" ? key(item) : item[key];
+    acc[name] = (acc[name] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function topEntries(counts) {
+  return Object.entries(counts).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), "zh-CN"));
+}
+
+function average(values) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function convertToDisplayCurrency(item) {
+  const rates = { KRW: 1, JPY: 9, CNY: 185, USD: 1360, EUR: 1480, TWD: 42, HKD: 174, GBP: 1720 };
+  return Math.round((item.price || 0) * (rates[item.currency] || 1));
+}
+
+function posterFallback(name) {
+  const encoded = encodeURIComponent(name || "concert");
+  return `https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=900&q=85&${encoded}`;
+}
+
+function showToast(message) {
+  el.toast.textContent = message;
+  el.toast.classList.add("show");
+  window.setTimeout(() => el.toast.classList.remove("show"), 1800);
+}

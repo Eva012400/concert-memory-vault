@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Concert Memory Vault</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="phone-shell" aria-live="polite">
+      <section class="screen active" id="concertsScreen" data-screen="concerts">
+        <header class="screen-header row-header">
+          <div>
+            <h1>我的演唱会 🎤</h1>
+            <p><span id="concertCount">0</span> 场回忆</p>
+          </div>
+          <button class="filter-toggle" type="button" id="filterToggle">⚙ 筛选</button>
+        </header>
+
+        <label class="search-box" aria-label="搜索">
+          <span>🔍</span>
+          <input id="searchInput" type="search" placeholder="搜索艺人、场馆、城市…" />
+        </label>
+
+        <section class="filter-panel" id="filterPanel" hidden>
+          <div class="filter-row">
+            <span>排序</span>
+            <button class="chip active" type="button" data-sort="newest">最新优先</button>
+            <button class="chip" type="button" data-sort="oldest">最早优先</button>
+            <button class="chip" type="button" data-sort="artist">艺人名</button>
+          </div>
+          <div class="filter-row" id="yearChips">
+            <span>年份</span>
+          </div>
+          <div class="filter-row" id="artistChips">
+            <span>艺人</span>
+          </div>
+        </section>
+
+        <section class="concert-grid" id="concertGrid"></section>
+      </section>
+
+      <section class="screen" id="calendarScreen" data-screen="calendar">
+        <header class="screen-header">
+          <h1>演出日历 📅</h1>
+          <p><span id="calendarCount">0</span> 场演唱会</p>
+        </header>
+        <div class="segmented">
+          <button class="active" type="button" data-calendar-mode="month">月视图</button>
+          <button type="button" data-calendar-mode="year">年视图</button>
+        </div>
+        <section class="month-card">
+          <div class="month-nav">
+            <button type="button" id="prevMonth">‹</button>
+            <strong id="monthTitle"></strong>
+            <button type="button" id="nextMonth">›</button>
+          </div>
+        </section>
+        <section class="calendar-card">
+          <div class="weekdays">
+            <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
+        <section class="year-calendar" id="yearCalendar" hidden></section>
+        <section class="day-events" id="dayEvents"></section>
+      </section>
+
+      <section class="screen" id="summaryScreen" data-screen="summary">
+        <header class="screen-header">
+          <h1>数据洞察 ✨</h1>
+          <p>共 <span id="summaryCount">0</span> 场观演记录</p>
+        </header>
+        <section class="insight-grid" id="insightGrid"></section>
+        <section class="wide-stat">
+          <span>总场次</span>
+          <strong id="totalShows">0</strong>
+          <small>场演唱会</small>
+          <b>🎵</b>
+        </section>
+        <section class="stack-card" id="spendStats"></section>
+        <section class="stack-card" id="rankingStats"></section>
+        <section class="stack-card" id="countryStats"></section>
+        <section class="stack-card" id="monthStats"></section>
+        <section class="stack-card" id="yearStats"></section>
+      </section>
+
+      <section class="screen" id="wrappedScreen" data-screen="wrapped">
+        <header class="screen-header">
+          <h1>年度回顾 🎁</h1>
+          <p>你的专属音乐年终总结</p>
+        </header>
+        <div class="year-tabs" id="wrapYears"></div>
+        <section class="wrapped-card" id="wrappedCard"></section>
+      </section>
+
+      <section class="screen add-screen" id="addScreen" data-screen="add">
+        <header class="form-header">
+          <button type="button" class="text-button" data-nav="concerts">取消</button>
+          <h1>记录演唱会</h1>
+          <button type="submit" form="concertForm" class="save-pill">保存</button>
+        </header>
+
+        <div class="segmented full">
+          <button class="active" type="button" data-form-mode="manual">✍️ 手动记录</button>
+          <button type="button" data-form-mode="paste">📋 粘贴导入</button>
+        </div>
+
+        <form class="concert-form" id="concertForm">
+          <input type="hidden" name="editingId" />
+          <section class="form-card poster-row">
+            <div class="poster-drop">📸</div>
+            <div>
+              <label>演出海报</label>
+              <input name="poster" type="url" placeholder="或粘贴图片 URL" />
+              <small>点击左侧上传本地图片，或直接填写 URL</small>
+            </div>
+          </section>
+
+          <section class="form-card paste-card" id="pasteCard" hidden>
+            <label>票务文字 / CSV</label>
+            <textarea id="pasteText" rows="5" placeholder="粘贴票务信息，我会帮你填入表单"></textarea>
+            <button type="button" class="outline-wide" id="parsePaste">解析并填入</button>
+          </section>
+
+          <section class="form-card fields">
+            <label>艺人名 *
+              <input name="artist" required placeholder="例：Taylor Swift" />
+            </label>
+            <label>巡演名称
+              <input name="tour" placeholder="例：The Eras Tour" />
+            </label>
+            <label>演出日期 *
+              <input name="date" required type="date" />
+            </label>
+            <label>场馆 *
+              <input name="venue" required placeholder="例：国家体育场" />
+            </label>
+            <label>城市 *
+              <input name="city" required placeholder="首尔" />
+            </label>
+            <label>国家/地区 *
+              <input name="country" required placeholder="韩国" />
+            </label>
+          </section>
+
+          <section class="form-card fields">
+            <div class="two-col">
+              <label>票价
+                <input name="price" type="number" min="0" step="1" />
+              </label>
+              <label>货币
+                <select name="currency">
+                  <option>KRW</option><option>JPY</option><option>CNY</option><option>USD</option>
+                  <option>EUR</option><option>TWD</option><option>HKD</option><option>GBP</option>
+                </select>
+              </label>
+            </div>
+            <label>评分</label>
+            <div class="rating-input" id="ratingInput"></div>
+            <input type="hidden" name="rating" value="5" />
+            <label>记忆碎片
+              <textarea name="memory" rows="4" placeholder="写下这场演唱会最难忘的瞬间…"></textarea>
+            </label>
+          </section>
+          <button class="submit-wide" type="submit">保存这场演唱会 🎵</button>
+        </form>
+      </section>
+
+      <nav class="bottom-nav" aria-label="主导航">
+        <button class="active" type="button" data-nav="concerts"><span>🎵</span><small>演唱会</small></button>
+        <button type="button" data-nav="calendar"><span>📅</span><small>日历</small></button>
+        <button type="button" data-nav="summary"><span>✨</span><small>总结</small></button>
+        <button type="button" data-nav="wrapped"><span>🎁</span><small>年度回顾</small></button>
+        <button class="add-button" type="button" data-nav="add"><span>＋</span></button>
+      </nav>
+    </main>
+
+    <dialog class="detail-dialog" id="detailDialog">
+      <div id="detailContent"></div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
