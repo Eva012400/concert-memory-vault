@@ -1,8 +1,8 @@
 const TABLE_NAME = "concerts";
 const SAVE_TIMEOUT_MS = 15000;
-const POSTER_MAX_WIDTH = 900;
-const POSTER_MAX_HEIGHT = 1260;
-const POSTER_QUALITY = 0.78;
+const POSTER_MAX_WIDTH = 700;
+const POSTER_MAX_HEIGHT = 980;
+const POSTER_QUALITY = 0.72;
 
 const seedConcerts = [
   {
@@ -327,11 +327,11 @@ function bindForm() {
         savedConcert = { ...existing, ...payload };
       } else {
         const { data: insertedConcert, error } = await withTimeout(
-          db.from(TABLE_NAME).insert(payload).select().single(),
+          db.from(TABLE_NAME).insert(payload).select("id, created_at, updated_at").single(),
           SAVE_TIMEOUT_MS
         );
         if (error) throw error;
-        savedConcert = insertedConcert;
+        savedConcert = { ...payload, ...insertedConcert };
       }
 
       syncConcertInState(savedConcert);
