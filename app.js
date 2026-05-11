@@ -1,8 +1,7 @@
-const STORAGE_KEY = "concert-memory-vault-figma-site-v2";
+const TABLE_NAME = "concerts";
 
 const seedConcerts = [
   {
-    id: "newjeans-2025",
     artist: "NewJeans",
     tour: "BUNNIES CAMP 2025 TOKYO DOME",
     date: "2025-01-11",
@@ -16,7 +15,6 @@ const seedConcerts = [
     poster: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=85"
   },
   {
-    id: "iu-2024",
     artist: "IU（李知恩）",
     tour: "H.E.R. WORLD TOUR",
     date: "2024-11-03",
@@ -30,7 +28,6 @@ const seedConcerts = [
     poster: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85"
   },
   {
-    id: "blackpink-2024",
     artist: "BLACKPINK",
     tour: "WORLD TOUR [BORN PINK]",
     date: "2024-09-15",
@@ -44,7 +41,6 @@ const seedConcerts = [
     poster: "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=900&q=85"
   },
   {
-    id: "coldplay-2024",
     artist: "Coldplay",
     tour: "Music of the Spheres World Tour",
     date: "2024-07-20",
@@ -58,7 +54,6 @@ const seedConcerts = [
     poster: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=900&q=85"
   },
   {
-    id: "taylor-2024",
     artist: "Taylor Swift",
     tour: "The Eras Tour",
     date: "2024-06-22",
@@ -73,8 +68,13 @@ const seedConcerts = [
   }
 ];
 
+const config = window.CONCERT_SUPABASE || {};
+const isConfigured = Boolean(config.url && config.anonKey && window.supabase);
+const db = isConfigured ? window.supabase.createClient(config.url, config.anonKey) : null;
+
 const state = {
-  concerts: loadConcerts(),
+  user: null,
+  concerts: [],
   filters: { search: "", sort: "newest", year: "全部", artist: "全部" },
   screen: "concerts",
   calendarDate: new Date(2025, 0, 1),
@@ -85,6 +85,14 @@ const state = {
 };
 
 const el = {
+  authShell: document.querySelector("#authShell"),
+  authForm: document.querySelector("#authForm"),
+  signupButton: document.querySelector("#signupButton"),
+  setupWarning: document.querySelector("#setupWarning"),
+  app: document.querySelector(".phone-shell"),
+  accountBar: document.querySelector("#accountBar"),
+  accountEmail: document.querySelector("#accountEmail"),
+  logoutButton: document.querySelector("#logoutButton"),
   screens: document.querySelectorAll("[data-screen]"),
   nav: document.querySelectorAll("[data-nav]"),
   concertCount: document.querySelector("#concertCount"),
@@ -98,7 +106,6 @@ const el = {
   artistChips: document.querySelector("#artistChips"),
   monthTitle: document.querySelector("#monthTitle"),
   calendarCard: document.querySelector(".calendar-card"),
-  monthCard: document.querySelector(".month-card"),
   calendarGrid: document.querySelector("#calendarGrid"),
   yearCalendar: document.querySelector("#yearCalendar"),
   dayEvents: document.querySelector("#dayEvents"),
@@ -122,13 +129,88 @@ const el = {
 
 init();
 
-function init() {
+async function init() {
+  bindAuth();
   bindNavigation();
   bindFilters();
   bindCalendar();
   bindForm();
+
+  if (!isConfigured) {
+    el.setupWarning.hidden = false;
+    el.app.hidden = true;
+    return;
+  }
+
+  const { data } = await db.auth.getSession();
+  await applySession(data.session);
+  db.auth.onAuthStateChange((_event, session) => applySession(session));
+}
+
+function bindAuth() {
+  el.authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!isConfigured) return;
+    const data = new FormData(el.authForm);
+    const { error } = await db.auth.signInWithPassword({
+      email: clean(data.get("email")),
+      password: String(data.get("password") || "")
+    });
+    if (error) showToast(error.message);
+  });
+
+  el.signupButton.addEventListener("click", async () => {
+    if (!isConfigured) return;
+    const data = new FormData(el.authForm);
+    const { error } = await db.auth.signUp({
+      email: clean(data.get("email")),
+      password: String(data.get("password") || "")
+    });
+    showToast(error ? error.message : "注册成功，请检查邮箱或直接登录");
+  });
+
+  el.logoutButton.addEventListener("click", async () => {
+    await db.auth.signOut();
+  });
+}
+
+async function applySession(session) {
+  state.user = session?.user || null;
+  el.authShell.hidden = Boolean(state.user);
+  el.app.hidden = !state.user;
+  el.accountBar.hidden = !state.user;
+  el.accountEmail.textContent = state.user?.email || "";
+  if (!state.user) return;
+  await loadConcerts();
   renderStaticControls();
   render();
+}
+
+async function loadConcerts() {
+  const { data, error } = await db
+    .from(TABLE_NAME)
+    .select("*")
+    .eq("user_id", state.user.id)
+    .order("date", { ascending: false });
+
+  if (error) {
+    showToast(error.message);
+    state.concerts = [];
+    return;
+  }
+
+  if (!data.length) {
+    await seedCurrentUser();
+    return loadConcerts();
+  }
+
+  state.concerts = data;
+}
+
+async function seedCurrentUser() {
+  const rows = seedConcerts.map((item) => ({ ...item, user_id: state.user.id }));
+  const { error } = await db.from(TABLE_NAME).insert(rows);
+  if (error) showToast(error.message);
 }
 
 function bindNavigation() {
@@ -203,13 +285,13 @@ function bindForm() {
 
   document.querySelector("#parsePaste").addEventListener("click", parsePastedText);
 
-  el.form.addEventListener("submit", (event) => {
+  el.form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(el.form);
     const editingId = clean(data.get("editingId"));
     const existing = state.concerts.find((item) => item.id === editingId);
-    const concert = {
-      id: existing?.id || `concert-${Date.now()}`,
+    const payload = {
+      user_id: state.user.id,
       artist: clean(data.get("artist")),
       tour: clean(data.get("tour")) || "Untitled Tour",
       date: data.get("date"),
@@ -223,16 +305,23 @@ function bindForm() {
       poster: clean(data.get("poster")) || existing?.poster || posterFallback(clean(data.get("artist")))
     };
 
-    if (!concert.artist || !concert.date || !concert.venue || !concert.city || !concert.country) {
+    if (!payload.artist || !payload.date || !payload.venue || !payload.city || !payload.country) {
       showToast("请补全必填信息");
       return;
     }
 
-    state.concerts = existing
-      ? state.concerts.map((item) => item.id === existing.id ? concert : item)
-      : [concert, ...state.concerts];
-    saveConcerts();
+    const request = existing
+      ? db.from(TABLE_NAME).update(payload).eq("id", existing.id).eq("user_id", state.user.id)
+      : db.from(TABLE_NAME).insert(payload);
+    const { error } = await request;
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+
     resetForm();
+    await loadConcerts();
+    renderStaticControls();
     showToast(existing ? "演唱会已更新" : "保存这场演唱会 🎵");
     setScreen("concerts");
   });
@@ -334,11 +423,8 @@ function renderCalendar() {
   el.calendarCard.hidden = state.calendarMode === "year";
   el.yearCalendar.hidden = state.calendarMode !== "year";
   el.dayEvents.innerHTML = "";
-  if (state.calendarMode === "year") {
-    renderYearCalendar(year);
-  } else {
-    renderMonthCalendar(year, month);
-  }
+  if (state.calendarMode === "year") renderYearCalendar(year);
+  else renderMonthCalendar(year, month);
 }
 
 function renderMonthCalendar(year, month) {
@@ -578,9 +664,14 @@ function editConcert(id) {
   setScreen("add");
 }
 
-function deleteConcert(id) {
-  state.concerts = state.concerts.filter((item) => item.id !== id);
-  saveConcerts();
+async function deleteConcert(id) {
+  const { error } = await db.from(TABLE_NAME).delete().eq("id", id).eq("user_id", state.user.id);
+  if (error) {
+    showToast(error.message);
+    return;
+  }
+  await loadConcerts();
+  renderStaticControls();
   el.dialog.close();
   render();
   showToast("已删除记录");
@@ -618,20 +709,6 @@ function renderRatingInput() {
   el.ratingInput.querySelectorAll("button").forEach((button, index) => {
     button.classList.toggle("active", index < state.rating);
   });
-}
-
-function loadConcerts() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return Array.isArray(stored) && stored.length ? stored : seedConcerts;
-  } catch {
-    return seedConcerts;
-  }
-}
-
-function saveConcerts() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.concerts));
-  renderStaticControls();
 }
 
 function clean(value) {
@@ -714,5 +791,5 @@ function posterFallback(name) {
 function showToast(message) {
   el.toast.textContent = message;
   el.toast.classList.add("show");
-  window.setTimeout(() => el.toast.classList.remove("show"), 1800);
+  window.setTimeout(() => el.toast.classList.remove("show"), 2200);
 }

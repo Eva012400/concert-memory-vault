@@ -34,6 +34,83 @@ body {
   color: var(--text);
 }
 
+.auth-shell {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 28px 16px;
+}
+
+.auth-card {
+  width: min(100%, 430px);
+  border-radius: 28px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+
+.auth-kicker {
+  margin-bottom: 12px;
+  color: var(--accent-dark);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-card h1 {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.auth-card > p:not(.auth-kicker):not(.setup-warning) {
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fffdf9;
+  padding: 12px 14px;
+  outline: none;
+}
+
+.setup-warning {
+  margin-top: 18px;
+  border-radius: 16px;
+  background: #fff3ef;
+  color: var(--accent-dark);
+  padding: 14px;
+  line-height: 1.5;
+}
+
+.account-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.account-bar button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: white;
+  color: var(--accent-dark);
+  padding: 7px 12px;
+}
+
 button,
 input,
 textarea,

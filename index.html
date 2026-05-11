@@ -7,7 +7,30 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <section class="auth-shell" id="authShell">
+      <div class="auth-card">
+        <p class="auth-kicker">Concert Memory Vault</p>
+        <h1>登录你的演唱会记忆库</h1>
+        <p>每个账户独立保存，可以在任何设备打开 GitHub Pages 链接继续使用。</p>
+        <form class="auth-form" id="authForm">
+          <label>邮箱
+            <input name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+          </label>
+          <label>密码
+            <input name="password" type="password" autocomplete="current-password" required minlength="6" placeholder="至少 6 位" />
+          </label>
+          <button class="submit-wide" type="submit" data-auth-login>登录</button>
+          <button class="outline-wide" type="button" id="signupButton">注册新账户</button>
+        </form>
+        <p class="setup-warning" id="setupWarning" hidden>还没有配置 Supabase。请先在 `supabase-config.js` 填入项目 URL 和 anon key。</p>
+      </div>
+    </section>
+
     <main class="phone-shell" aria-live="polite">
+      <header class="account-bar" id="accountBar" hidden>
+        <span id="accountEmail"></span>
+        <button type="button" id="logoutButton">退出</button>
+      </header>
       <section class="screen active" id="concertsScreen" data-screen="concerts">
         <header class="screen-header row-header">
           <div>
@@ -181,6 +204,8 @@
     </dialog>
 
     <div class="toast" id="toast" role="status"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
