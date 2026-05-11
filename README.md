@@ -49,3 +49,4 @@ app.js
 ## 数据说明
 
 网站使用浏览器 `localStorage` 保存演唱会记录。部署到 GitHub Pages 后，每个访问者的数据都只保存在自己的浏览器里。
+# concert-memory-vault
