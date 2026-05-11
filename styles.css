@@ -10,7 +10,6 @@
   --accent-dark: #a96457;
   --brown: #4d3327;
   --pink: #f1d3cd;
-  --gold: #d49b68;
   --shadow: 0 14px 34px rgba(74, 48, 35, 0.08);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
 }
@@ -91,24 +90,6 @@ body {
   color: var(--accent-dark);
   padding: 14px;
   line-height: 1.5;
-}
-
-.account-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-
-.account-bar button {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: white;
-  color: var(--accent-dark);
-  padding: 7px 12px;
 }
 
 button,
@@ -212,16 +193,31 @@ button[aria-busy="true"] {
   box-shadow: var(--shadow);
 }
 
+.search-row {
+  display: grid;
+  grid-template-columns: 1fr 46px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
 .search-box {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 45px;
-  margin-bottom: 12px;
   padding: 0 16px;
   background: var(--card);
   border-radius: 13px;
   box-shadow: var(--shadow);
+}
+
+.search-row .filter-toggle {
+  display: grid;
+  place-items: center;
+  min-height: 45px;
+  padding: 0;
+  border-radius: 13px;
+  font-size: 1.05rem;
 }
 
 .search-box input,
@@ -291,14 +287,14 @@ textarea::placeholder {
 
 .concert-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .concert-card {
   overflow: hidden;
   border: 0;
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--card);
   box-shadow: var(--shadow);
   text-align: left;
@@ -308,7 +304,7 @@ textarea::placeholder {
 
 .poster {
   position: relative;
-  height: 214px;
+  aspect-ratio: 5 / 7;
   overflow: hidden;
   background: var(--soft);
 }
@@ -320,8 +316,7 @@ textarea::placeholder {
   display: block;
 }
 
-.date-badge,
-.rating-badge {
+.date-badge {
   position: absolute;
   z-index: 1;
   border-radius: 9px;
@@ -329,10 +324,10 @@ textarea::placeholder {
 }
 
 .date-badge {
-  left: 10px;
-  top: 10px;
-  width: 39px;
-  padding: 6px 4px;
+  left: 7px;
+  top: 7px;
+  width: 34px;
+  padding: 5px 3px;
   background: rgba(255, 255, 255, 0.92);
   text-align: center;
 }
@@ -344,53 +339,67 @@ textarea::placeholder {
 
 .date-badge small {
   color: var(--accent-dark);
-  font-size: 0.65rem;
+  font-size: 0.58rem;
 }
 
 .date-badge strong {
   display: block;
-  font-size: 1.2rem;
+  font-size: 1.05rem;
 }
 
 .date-badge span {
   color: var(--muted);
-  font-size: 0.66rem;
-}
-
-.rating-badge {
-  top: 11px;
-  right: 10px;
-  padding: 2px 8px;
-  background: rgba(255, 255, 255, 0.93);
-  color: var(--gold);
-  font-size: 0.76rem;
+  font-size: 0.58rem;
 }
 
 .card-body {
-  padding: 14px 14px 16px;
+  min-height: 82px;
+  padding: 8px 8px 10px;
 }
 
 .card-body h3 {
-  font-size: 1rem;
-  margin-bottom: 5px;
+  overflow: hidden;
+  margin-bottom: 4px;
+  font-size: 0.82rem;
+  line-height: 1.18;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tour,
+.venue,
+.date-count {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  margin: 0;
+  line-height: 1.28;
+  text-overflow: ellipsis;
 }
 
 .tour {
-  overflow: hidden;
+  -webkit-line-clamp: 1;
   color: var(--accent-dark);
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  text-transform: uppercase;
+  font-size: 0.64rem;
 }
 
-.venue,
-.price {
-  margin-top: 9px;
+.venue {
+  -webkit-line-clamp: 1;
+  margin-top: 3px;
   color: #86756b;
-  font-size: 0.82rem;
-  line-height: 1.35;
+  font-size: 0.66rem;
+}
+
+.venue-extra {
+  display: none;
+}
+
+.date-count {
+  -webkit-line-clamp: 1;
+  margin-top: 4px;
+  color: var(--accent-dark);
+  font-size: 0.64rem;
+  font-weight: 800;
 }
 
 .empty {
@@ -684,6 +693,20 @@ textarea::placeholder {
   margin: 18px 0 18px;
 }
 
+.wrapped-icon-button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 15px;
+  background: var(--brown);
+  color: white;
+  box-shadow: var(--shadow);
+  font-size: 1.25rem;
+}
+
 .wrapped-card {
   display: block;
   min-height: 220px;
@@ -881,19 +904,53 @@ textarea::placeholder {
 
 .poster-row {
   display: grid;
-  grid-template-columns: 80px 1fr;
+  grid-template-columns: 82px 1fr;
   gap: 12px;
   align-items: center;
 }
 
 .poster-drop {
+  position: relative;
   display: grid;
   place-items: center;
-  height: 80px;
+  width: 82px;
+  aspect-ratio: 5 / 7;
   border: 1px dashed #d9c9be;
   border-radius: 11px;
   background: #eee4d9;
   font-size: 1.45rem;
+  color: var(--accent-dark);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.poster-drop img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.poster-row input[type="file"] {
+  width: 100%;
+  min-height: auto;
+  border: 0;
+  background: transparent;
+  color: #8d7d72;
+  font-size: 0.84rem;
+  padding: 0;
+}
+
+.poster-row input[type="file"]::file-selector-button {
+  min-height: 38px;
+  margin-right: 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brown);
+  color: white;
+  padding: 8px 13px;
+  font: inherit;
 }
 
 label {
@@ -921,24 +978,6 @@ label {
   display: grid;
   grid-template-columns: 1fr 0.8fr;
   gap: 10px;
-}
-
-.rating-input {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.rating-input button {
-  border: 0;
-  background: transparent;
-  color: #d6c7bc;
-  font-size: 1.35rem;
-  padding: 0 2px;
-}
-
-.rating-input button.active {
-  color: var(--gold);
 }
 
 .outline-wide,
@@ -1006,13 +1045,50 @@ label {
   place-items: center;
   width: 48px;
   height: 48px;
-  margin: 15px auto;
+  margin: 6px auto 0;
   border-radius: 50%;
   background: var(--accent);
   color: white;
   box-shadow: 0 10px 24px rgba(169, 100, 87, 0.28);
   font-size: 1.9rem;
   line-height: 1;
+}
+
+.add-button small {
+  display: block;
+  margin-top: 1px;
+}
+
+.profile-card {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.profile-card span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.profile-card strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.profile-card button {
+  justify-self: start;
+  min-height: 40px;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff8f5;
+  color: var(--accent-dark);
+  padding: 8px 14px;
+  font-weight: 800;
 }
 
 .detail-dialog {
@@ -1052,19 +1128,18 @@ label {
 }
 
 .detail-cover {
-  width: 100%;
-  height: 200px;
+  width: min(62vw, 220px);
+  aspect-ratio: 5 / 7;
+  height: auto;
   object-fit: cover;
   border-radius: 22px;
   display: block;
-  margin-bottom: 28px;
+  margin: 0 auto 28px;
 }
 
 .detail-title {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: end;
+  display: block;
+  text-align: center;
 }
 
 .detail-title h2 {
@@ -1078,13 +1153,6 @@ label {
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0.08em;
-}
-
-.detail-stars {
-  flex: 0 0 auto;
-  color: var(--gold);
-  font-size: 1.2rem;
-  letter-spacing: 0.05em;
 }
 
 .detail-date {
@@ -1187,12 +1255,35 @@ label {
     padding-inline: 12px;
   }
 
-  .poster {
-    height: 188px;
+  .concert-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 
   .card-body {
-    padding: 12px;
+    min-height: 106px;
+    padding: 10px 10px 12px;
+  }
+
+  .card-body h3 {
+    font-size: 0.95rem;
+  }
+
+  .tour {
+    font-size: 0.72rem;
+  }
+
+  .venue {
+    -webkit-line-clamp: 2;
+    font-size: 0.74rem;
+  }
+
+  .date-count {
+    font-size: 0.72rem;
+  }
+
+  .venue-extra {
+    display: inline;
   }
 
   .screen-header h1 {

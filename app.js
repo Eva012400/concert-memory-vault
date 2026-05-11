@@ -10,7 +10,6 @@ const seedConcerts = [
     country: "韩国",
     price: 143000,
     currency: "KRW",
-    rating: 4,
     memory: "OMG 开场炸裂，Hanni solo 部分太惊艳。整体编舞和舞台设计都非常精致，比预期好太多。",
     poster: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=900&q=85"
   },
@@ -23,7 +22,6 @@ const seedConcerts = [
     country: "韩国",
     price: 132000,
     currency: "KRW",
-    rating: 5,
     memory: "安可时大家举起灯，声音很轻，但特别满。",
     poster: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85"
   },
@@ -36,7 +34,6 @@ const seedConcerts = [
     country: "韩国",
     price: 165000,
     currency: "KRW",
-    rating: 5,
     memory: "烟火和鼓点一起落下来的那一秒，完全不想眨眼。",
     poster: "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=900&q=85"
   },
@@ -49,7 +46,6 @@ const seedConcerts = [
     country: "中国",
     price: 1380,
     currency: "CNY",
-    rating: 5,
     memory: "腕带一起亮起，像把星空搬进了体育场。",
     poster: "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?auto=format&fit=crop&w=900&q=85"
   },
@@ -62,7 +58,6 @@ const seedConcerts = [
     country: "日本",
     price: 19800,
     currency: "JPY",
-    rating: 4,
     memory: "交换手链交换到散场，像和陌生人共享了一整个夏天。",
     poster: "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=900&q=85"
   }
@@ -81,7 +76,6 @@ const state = {
   calendarMode: "month",
   wrappedYear: "2025",
   wrapSlide: 0,
-  rating: 5,
   isSaving: false
 };
 
@@ -91,11 +85,11 @@ const el = {
   signupButton: document.querySelector("#signupButton"),
   setupWarning: document.querySelector("#setupWarning"),
   app: document.querySelector(".phone-shell"),
-  accountBar: document.querySelector("#accountBar"),
   accountEmail: document.querySelector("#accountEmail"),
   logoutButton: document.querySelector("#logoutButton"),
   screens: document.querySelectorAll("[data-screen]"),
   nav: document.querySelectorAll("[data-nav]"),
+  bottomNav: document.querySelectorAll(".bottom-nav [data-nav]"),
   concertCount: document.querySelector("#concertCount"),
   calendarCount: document.querySelector("#calendarCount"),
   summaryCount: document.querySelector("#summaryCount"),
@@ -122,9 +116,11 @@ const el = {
   formTitle: document.querySelector("#formTitle"),
   form: document.querySelector("#concertForm"),
   saveActions: document.querySelectorAll("[data-save-action]"),
-  ratingInput: document.querySelector("#ratingInput"),
   pasteCard: document.querySelector("#pasteCard"),
   pasteText: document.querySelector("#pasteText"),
+  posterInput: document.querySelector("#posterInput"),
+  posterPreview: document.querySelector("#posterPreview"),
+  posterPlaceholder: document.querySelector("#posterPlaceholder"),
   dialog: document.querySelector("#detailDialog"),
   detail: document.querySelector("#detailContent"),
   toast: document.querySelector("#toast")
@@ -181,7 +177,6 @@ async function applySession(session) {
   state.user = session?.user || null;
   el.authShell.hidden = Boolean(state.user);
   el.app.hidden = !state.user;
-  el.accountBar.hidden = !state.user;
   el.accountEmail.textContent = state.user?.email || "";
   if (!state.user) return;
   await loadConcerts();
@@ -226,7 +221,10 @@ function bindNavigation() {
 function setScreen(screen) {
   state.screen = screen;
   el.screens.forEach((item) => item.classList.toggle("active", item.dataset.screen === screen));
-  el.nav.forEach((button) => button.classList.toggle("active", button.dataset.nav === screen));
+  el.bottomNav.forEach((button) => {
+    const isActive = button.dataset.nav === screen || (screen === "wrapped" && button.dataset.nav === "summary");
+    button.classList.toggle("active", isActive);
+  });
   window.scrollTo({ top: 0, behavior: "smooth" });
   render();
 }
@@ -269,19 +267,6 @@ function bindCalendar() {
 }
 
 function bindForm() {
-  for (let index = 1; index <= 5; index += 1) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = "★";
-    button.className = "active";
-    button.addEventListener("click", () => {
-      state.rating = index;
-      el.form.rating.value = String(index);
-      renderRatingInput();
-    });
-    el.ratingInput.append(button);
-  }
-
   document.querySelectorAll("[data-form-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       document.querySelectorAll("[data-form-mode]").forEach((item) => item.classList.toggle("active", item === button));
@@ -290,6 +275,7 @@ function bindForm() {
   });
 
   document.querySelector("#parsePaste").addEventListener("click", parsePastedText);
+  el.posterInput.addEventListener("change", handlePosterUpload);
 
   el.form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -312,7 +298,6 @@ function bindForm() {
       country: clean(data.get("country")),
       price: Number(data.get("price")) || 0,
       currency: data.get("currency") || "KRW",
-      rating: Number(data.get("rating")) || 5,
       memory: clean(data.get("memory")),
       poster: clean(data.get("poster")) || existing?.poster || posterFallback(clean(data.get("artist")))
     };
@@ -352,7 +337,6 @@ function bindForm() {
 function renderStaticControls() {
   renderChips(el.yearChips, ["全部", ...unique(state.concerts.map((item) => yearOf(item.date))).sort((a, b) => b - a)], "year");
   renderChips(el.artistChips, ["全部", ...unique(state.concerts.map((item) => item.artist)).sort()], "artist");
-  renderRatingInput();
   updateFormAffordance();
 }
 
@@ -410,7 +394,7 @@ function render() {
 }
 
 function renderCounts() {
-  el.concertCount.textContent = state.concerts.length;
+  if (el.concertCount) el.concertCount.textContent = state.concerts.length;
   el.calendarCount.textContent = state.concerts.length;
   el.summaryCount.textContent = state.concerts.length;
 }
@@ -426,6 +410,7 @@ function renderConcerts() {
     const button = document.createElement("button");
     button.className = "concert-card";
     button.type = "button";
+    button.setAttribute("aria-label", `${concert.artist}，${concert.tour}，${formatDateLong(concert.date)}，${concert.venue}`);
     button.innerHTML = `
       <div class="poster">
         <img src="${concert.poster}" alt="${concert.artist}" />
@@ -434,13 +419,12 @@ function renderConcerts() {
           <strong>${dayOf(concert.date)}</strong>
           <span>${yearOf(concert.date)}</span>
         </div>
-        <div class="rating-badge">${stars(concert.rating)}</div>
       </div>
       <div class="card-body">
         <h3>${concert.artist}</h3>
         <p class="tour">${concert.tour}</p>
-        <p class="venue">📍 ${concert.venue}，${concert.city}</p>
-        <p class="price">${concert.currency} ${formatNumber(concert.price)}</p>
+        <p class="venue"><span>${concert.city}</span><span class="venue-extra"> · ${concert.venue}</span></p>
+        <p class="date-count">${relativeDateLabel(concert.date)}</p>
       </div>
     `;
     button.addEventListener("click", () => openDetail(concert));
@@ -529,14 +513,14 @@ function renderDayEvents(events, key) {
 function renderSummary() {
   const byArtist = countBy(state.concerts, "artist");
   const byCity = countBy(state.concerts, "city");
-  const avg = average(state.concerts.map((item) => item.rating).filter(Boolean));
+  const countries = unique(state.concerts.map((item) => item.country)).length;
   const busiest = topEntries(countBy(state.concerts, (item) => `${monthOf(item.date)}月`))[0];
 
   el.insightGrid.innerHTML = `
     ${insight("🎤", "最爱艺人", topEntries(byArtist)[0]?.[0] || "暂无", `看了 ${topEntries(byArtist)[0]?.[1] || 0} 场`, true)}
     ${insight("🗓", "最忙的月份", busiest?.[0] || "暂无", `${busiest?.[1] || 0} 场演出`)}
     ${insight("📍", "最常去城市", topEntries(byCity)[0]?.[0] || "暂无", `${topEntries(byCity)[0]?.[1] || 0} 场`)}
-    ${insight("⭐", "平均评分", `${avg.toFixed(1)} 分`, `${state.concerts.length} 条评分`)}
+    ${insight("🌍", "足迹范围", `${countries || 0} 个国家/地区`, `${unique(state.concerts.map((item) => item.city)).length || 0} 座城市`)}
   `;
   el.totalShows.textContent = state.concerts.length;
   renderSpendStats();
@@ -666,7 +650,6 @@ function openDetail(concert) {
           <h2>${concert.artist}</h2>
           <p>${concert.tour}</p>
         </div>
-        <div class="detail-stars">${stars(concert.rating)}</div>
       </header>
       <p class="detail-date">${formatDateLong(concert.date)}</p>
       <div class="detail-divider"></div>
@@ -697,6 +680,7 @@ function editConcert(id) {
   el.dialog.close();
   el.form.editingId.value = concert.id;
   el.form.poster.value = concert.poster || "";
+  updatePosterPreview(concert.poster || "");
   el.form.artist.value = concert.artist || "";
   el.form.tour.value = concert.tour || "";
   el.form.date.value = concert.date || "";
@@ -706,9 +690,6 @@ function editConcert(id) {
   el.form.price.value = concert.price || "";
   el.form.currency.value = concert.currency || "KRW";
   el.form.memory.value = concert.memory || "";
-  state.rating = concert.rating || 5;
-  el.form.rating.value = String(state.rating);
-  renderRatingInput();
   updateFormAffordance();
   setScreen("add");
 }
@@ -729,10 +710,38 @@ async function deleteConcert(id) {
 function resetForm() {
   el.form.reset();
   el.form.editingId.value = "";
-  state.rating = 5;
-  el.form.rating.value = "5";
-  renderRatingInput();
+  el.form.poster.value = "";
+  updatePosterPreview("");
   updateFormAffordance();
+}
+
+function handlePosterUpload(event) {
+  const [file] = event.target.files;
+  if (!file) {
+    updatePosterPreview("");
+    el.form.poster.value = "";
+    return;
+  }
+  if (!file.type.startsWith("image/")) {
+    showToast("请选择图片文件");
+    event.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    const dataUrl = String(reader.result || "");
+    el.form.poster.value = dataUrl;
+    updatePosterPreview(dataUrl);
+  });
+  reader.addEventListener("error", () => showToast("图片读取失败，请换一张试试"));
+  reader.readAsDataURL(file);
+}
+
+function updatePosterPreview(src) {
+  el.posterPreview.hidden = !src;
+  el.posterPlaceholder.hidden = Boolean(src);
+  if (src) el.posterPreview.src = src;
+  else el.posterPreview.removeAttribute("src");
 }
 
 function parsePastedText() {
@@ -753,12 +762,6 @@ function parsePastedText() {
     el.form.price.value = price[2].replaceAll(",", "");
   }
   showToast("已尝试填入表单");
-}
-
-function renderRatingInput() {
-  el.ratingInput.querySelectorAll("button").forEach((button, index) => {
-    button.classList.toggle("active", index < state.rating);
-  });
 }
 
 function clean(value) {
@@ -786,10 +789,6 @@ function isToday(year, month, day) {
   return now.getFullYear() === year && now.getMonth() === month && now.getDate() === day;
 }
 
-function stars(rating) {
-  return "★".repeat(Math.max(0, rating || 0)) + "☆".repeat(Math.max(0, 5 - (rating || 0)));
-}
-
 function monthNames() {
   return ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"];
 }
@@ -801,6 +800,15 @@ function formatDateLong(date) {
     day: "numeric",
     weekday: "short"
   });
+}
+
+function relativeDateLabel(date) {
+  const target = new Date(`${date}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((target - today) / 86400000);
+  if (diff === 0) return "今天";
+  return diff > 0 ? `${diff} 天后` : `${Math.abs(diff)} 天前`;
 }
 
 function formatNumber(value) {
@@ -821,11 +829,6 @@ function countBy(items, key) {
 
 function topEntries(counts) {
   return Object.entries(counts).sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0]), "zh-CN"));
-}
-
-function average(values) {
-  if (!values.length) return 0;
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function convertToDisplayCurrency(item) {

@@ -27,23 +27,14 @@
     </section>
 
     <main class="phone-shell" aria-live="polite">
-      <header class="account-bar" id="accountBar" hidden>
-        <span id="accountEmail"></span>
-        <button type="button" id="logoutButton">退出</button>
-      </header>
       <section class="screen active" id="concertsScreen" data-screen="concerts">
-        <header class="screen-header row-header">
-          <div>
-            <h1>我的演唱会 🎤</h1>
-            <p><span id="concertCount">0</span> 场回忆</p>
-          </div>
-          <button class="filter-toggle" type="button" id="filterToggle">⚙ 筛选</button>
-        </header>
-
-        <label class="search-box" aria-label="搜索">
-          <span>🔍</span>
-          <input id="searchInput" type="search" placeholder="搜索艺人、场馆、城市…" />
-        </label>
+        <div class="search-row">
+          <label class="search-box" aria-label="搜索">
+            <span>🔍</span>
+            <input id="searchInput" type="search" placeholder="搜索艺人、场馆、城市…" />
+          </label>
+          <button class="filter-toggle" type="button" id="filterToggle">⚙</button>
+        </div>
 
         <section class="filter-panel" id="filterPanel" hidden>
           <div class="filter-row">
@@ -90,9 +81,12 @@
       </section>
 
       <section class="screen" id="summaryScreen" data-screen="summary">
-        <header class="screen-header">
-          <h1>数据洞察 ✨</h1>
-          <p>共 <span id="summaryCount">0</span> 场观演记录</p>
+        <header class="screen-header row-header">
+          <div>
+            <h1>数据洞察 ✨</h1>
+            <p>共 <span id="summaryCount">0</span> 场观演记录</p>
+          </div>
+          <button class="wrapped-icon-button" type="button" data-nav="wrapped" aria-label="查看年度回顾">🎁</button>
         </header>
         <section class="insight-grid" id="insightGrid"></section>
         <section class="wide-stat">
@@ -132,11 +126,15 @@
         <form class="concert-form" id="concertForm">
           <input type="hidden" name="editingId" />
           <section class="form-card poster-row">
-            <div class="poster-drop">📸</div>
+            <label class="poster-drop" for="posterInput">
+              <img id="posterPreview" alt="" hidden />
+              <span id="posterPlaceholder">📸</span>
+            </label>
             <div>
               <label>演出海报</label>
-              <input name="poster" type="url" placeholder="或粘贴图片 URL" />
-              <small>点击左侧上传本地图片，或直接填写 URL</small>
+              <input id="posterInput" name="posterFile" type="file" accept="image/*" />
+              <input name="poster" type="hidden" />
+              <small>上传本地图片作为这场演出的海报</small>
             </div>
           </section>
 
@@ -179,9 +177,6 @@
                 </select>
               </label>
             </div>
-            <label>评分</label>
-            <div class="rating-input" id="ratingInput"></div>
-            <input type="hidden" name="rating" value="5" />
             <label>记忆碎片
               <textarea name="memory" rows="4" placeholder="写下这场演唱会最难忘的瞬间…"></textarea>
             </label>
@@ -190,12 +185,24 @@
         </form>
       </section>
 
+      <section class="screen" id="profileScreen" data-screen="profile">
+        <header class="screen-header">
+          <h1>我的</h1>
+          <p>账户与应用设置</p>
+        </header>
+        <section class="profile-card">
+          <span>当前账号</span>
+          <strong id="accountEmail"></strong>
+          <button type="button" id="logoutButton">退出登录</button>
+        </section>
+      </section>
+
       <nav class="bottom-nav" aria-label="主导航">
         <button class="active" type="button" data-nav="concerts"><span>🎵</span><small>演唱会</small></button>
         <button type="button" data-nav="calendar"><span>📅</span><small>日历</small></button>
+        <button class="add-button" type="button" data-nav="add"><span>＋</span><small>添加</small></button>
         <button type="button" data-nav="summary"><span>✨</span><small>总结</small></button>
-        <button type="button" data-nav="wrapped"><span>🎁</span><small>年度回顾</small></button>
-        <button class="add-button" type="button" data-nav="add"><span>＋</span></button>
+        <button type="button" data-nav="profile"><span>👤</span><small>我的</small></button>
       </nav>
     </main>
 
