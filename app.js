@@ -81,7 +81,8 @@ const state = {
   calendarMode: "month",
   wrappedYear: "2025",
   wrapSlide: 0,
-  rating: 5
+  rating: 5,
+  isSaving: false
 };
 
 const el = {
@@ -118,7 +119,9 @@ const el = {
   yearStats: document.querySelector("#yearStats"),
   wrapYears: document.querySelector("#wrapYears"),
   wrappedCard: document.querySelector("#wrappedCard"),
+  formTitle: document.querySelector("#formTitle"),
   form: document.querySelector("#concertForm"),
+  saveActions: document.querySelectorAll("[data-save-action]"),
   ratingInput: document.querySelector("#ratingInput"),
   pasteCard: document.querySelector("#pasteCard"),
   pasteText: document.querySelector("#pasteText"),
@@ -214,7 +217,10 @@ async function seedCurrentUser() {
 }
 
 function bindNavigation() {
-  el.nav.forEach((button) => button.addEventListener("click", () => setScreen(button.dataset.nav)));
+  el.nav.forEach((button) => button.addEventListener("click", () => {
+    if (button.dataset.nav === "add") resetForm();
+    setScreen(button.dataset.nav);
+  }));
 }
 
 function setScreen(screen) {
@@ -287,6 +293,12 @@ function bindForm() {
 
   el.form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (state.isSaving) return;
+    if (!state.user) {
+      showToast("请先登录再保存");
+      return;
+    }
+
     const data = new FormData(el.form);
     const editingId = clean(data.get("editingId"));
     const existing = state.concerts.find((item) => item.id === editingId);
@@ -310,20 +322,26 @@ function bindForm() {
       return;
     }
 
-    const request = existing
-      ? db.from(TABLE_NAME).update(payload).eq("id", existing.id).eq("user_id", state.user.id)
-      : db.from(TABLE_NAME).insert(payload);
-    const { error } = await request;
-    if (error) {
-      showToast(error.message);
-      return;
-    }
+    setSavingState(true);
+    showToast(existing ? "正在更新记录…" : "正在保存记录…");
 
-    resetForm();
-    await loadConcerts();
-    renderStaticControls();
-    showToast(existing ? "演唱会已更新" : "保存这场演唱会 🎵");
-    setScreen("concerts");
+    try {
+      const request = existing
+        ? db.from(TABLE_NAME).update(payload).eq("id", existing.id).eq("user_id", state.user.id).select().single()
+        : db.from(TABLE_NAME).insert(payload).select().single();
+      const { data: savedConcert, error } = await request;
+      if (error) throw error;
+
+      syncConcertInState(savedConcert);
+      renderStaticControls();
+      resetForm();
+      setScreen("concerts");
+      showToast(existing ? "已更新，卡片内容已保存" : "已保存，新卡片已加入");
+    } catch (error) {
+      showToast(error.message || "保存失败，请再试一次");
+    } finally {
+      setSavingState(false);
+    }
   });
 
   el.dialog.addEventListener("click", (event) => {
@@ -335,6 +353,36 @@ function renderStaticControls() {
   renderChips(el.yearChips, ["全部", ...unique(state.concerts.map((item) => yearOf(item.date))).sort((a, b) => b - a)], "year");
   renderChips(el.artistChips, ["全部", ...unique(state.concerts.map((item) => item.artist)).sort()], "artist");
   renderRatingInput();
+  updateFormAffordance();
+}
+
+function syncConcertInState(concert) {
+  const index = state.concerts.findIndex((item) => item.id === concert.id);
+  if (index >= 0) state.concerts.splice(index, 1, concert);
+  else state.concerts.unshift(concert);
+  state.concerts.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+function setSavingState(isSaving) {
+  state.isSaving = isSaving;
+  el.form.classList.toggle("is-saving", isSaving);
+  el.saveActions.forEach((button) => {
+    button.disabled = isSaving;
+    button.setAttribute("aria-busy", String(isSaving));
+    button.textContent = isSaving ? "保存中…" : button.dataset.defaultText;
+  });
+}
+
+function updateFormAffordance() {
+  const isEditing = Boolean(el.form.editingId.value);
+  el.formTitle.textContent = isEditing ? "编辑演唱会" : "记录演唱会";
+  el.saveActions.forEach((button) => {
+    const text = button.classList.contains("submit-wide")
+      ? (isEditing ? "保存修改并关闭" : "保存这场演唱会 🎵")
+      : (isEditing ? "更新" : "保存");
+    button.dataset.defaultText = text;
+    if (!state.isSaving) button.textContent = text;
+  });
 }
 
 function renderChips(container, values, key) {
@@ -661,6 +709,7 @@ function editConcert(id) {
   state.rating = concert.rating || 5;
   el.form.rating.value = String(state.rating);
   renderRatingInput();
+  updateFormAffordance();
   setScreen("add");
 }
 
@@ -683,6 +732,7 @@ function resetForm() {
   state.rating = 5;
   el.form.rating.value = "5";
   renderRatingInput();
+  updateFormAffordance();
 }
 
 function parsePastedText() {

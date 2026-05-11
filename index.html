@@ -120,8 +120,8 @@
       <section class="screen add-screen" id="addScreen" data-screen="add">
         <header class="form-header">
           <button type="button" class="text-button" data-nav="concerts">取消</button>
-          <h1>记录演唱会</h1>
-          <button type="submit" form="concertForm" class="save-pill">保存</button>
+          <h1 id="formTitle">记录演唱会</h1>
+          <button type="submit" form="concertForm" class="save-pill" data-save-action>保存</button>
         </header>
 
         <div class="segmented full">
@@ -186,7 +186,7 @@
               <textarea name="memory" rows="4" placeholder="写下这场演唱会最难忘的瞬间…"></textarea>
             </label>
           </section>
-          <button class="submit-wide" type="submit">保存这场演唱会 🎵</button>
+          <button class="submit-wide" type="submit" data-save-action>保存这场演唱会 🎵</button>
         </form>
       </section>
 

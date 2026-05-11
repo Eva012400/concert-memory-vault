@@ -188,6 +188,24 @@ p {
   padding: 8px 14px;
 }
 
+button:disabled,
+button[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.62;
+}
+
+.save-pill[aria-busy="true"],
+.submit-wide[aria-busy="true"] {
+  background: #7b635b;
+  border-color: #7b635b;
+  color: #fff;
+}
+
+.concert-form.is-saving .form-card {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .filter-toggle {
   flex: 0 0 auto;
   color: #806e63;
