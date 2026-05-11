@@ -1,4 +1,8 @@
 const TABLE_NAME = "concerts";
+const SAVE_TIMEOUT_MS = 15000;
+const POSTER_MAX_WIDTH = 900;
+const POSTER_MAX_HEIGHT = 1260;
+const POSTER_QUALITY = 0.78;
 
 const seedConcerts = [
   {
@@ -288,6 +292,8 @@ function bindForm() {
     const data = new FormData(el.form);
     const editingId = clean(data.get("editingId"));
     const existing = state.concerts.find((item) => item.id === editingId);
+    const memory = clean(data.get("memory"));
+    const poster = clean(data.get("poster")) || existing?.poster || posterFallback(clean(data.get("artist")));
     const payload = {
       user_id: state.user.id,
       artist: clean(data.get("artist")),
@@ -298,8 +304,8 @@ function bindForm() {
       country: clean(data.get("country")),
       price: Number(data.get("price")) || 0,
       currency: data.get("currency") || "KRW",
-      memory: clean(data.get("memory")),
-      poster: clean(data.get("poster")) || existing?.poster || posterFallback(clean(data.get("artist")))
+      memory: memory || null,
+      poster
     };
 
     if (!payload.artist || !payload.date || !payload.venue || !payload.city || !payload.country) {
@@ -311,11 +317,22 @@ function bindForm() {
     showToast(existing ? "正在更新记录…" : "正在保存记录…");
 
     try {
-      const request = existing
-        ? db.from(TABLE_NAME).update(payload).eq("id", existing.id).eq("user_id", state.user.id).select().single()
-        : db.from(TABLE_NAME).insert(payload).select().single();
-      const { data: savedConcert, error } = await request;
-      if (error) throw error;
+      let savedConcert;
+      if (existing) {
+        const { error } = await withTimeout(
+          db.from(TABLE_NAME).update(payload).eq("id", existing.id).eq("user_id", state.user.id),
+          SAVE_TIMEOUT_MS
+        );
+        if (error) throw error;
+        savedConcert = { ...existing, ...payload };
+      } else {
+        const { data: insertedConcert, error } = await withTimeout(
+          db.from(TABLE_NAME).insert(payload).select().single(),
+          SAVE_TIMEOUT_MS
+        );
+        if (error) throw error;
+        savedConcert = insertedConcert;
+      }
 
       syncConcertInState(savedConcert);
       renderStaticControls();
@@ -715,7 +732,7 @@ function resetForm() {
   updateFormAffordance();
 }
 
-function handlePosterUpload(event) {
+async function handlePosterUpload(event) {
   const [file] = event.target.files;
   if (!file) {
     updatePosterPreview("");
@@ -727,14 +744,46 @@ function handlePosterUpload(event) {
     event.target.value = "";
     return;
   }
-  const reader = new FileReader();
-  reader.addEventListener("load", () => {
-    const dataUrl = String(reader.result || "");
+  showToast("正在压缩海报…");
+  try {
+    const dataUrl = await compressPoster(file);
     el.form.poster.value = dataUrl;
     updatePosterPreview(dataUrl);
+    showToast("海报已准备好");
+  } catch (error) {
+    event.target.value = "";
+    el.form.poster.value = "";
+    updatePosterPreview("");
+    showToast(error.message || "图片读取失败，请换一张试试");
+  }
+}
+
+function compressPoster(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("error", () => reject(new Error("图片读取失败，请换一张试试")));
+    reader.addEventListener("load", () => {
+      const image = new Image();
+      image.addEventListener("error", () => reject(new Error("图片无法识别，请换一张试试")));
+      image.addEventListener("load", () => {
+        const scale = Math.min(1, POSTER_MAX_WIDTH / image.width, POSTER_MAX_HEIGHT / image.height);
+        const width = Math.max(1, Math.round(image.width * scale));
+        const height = Math.max(1, Math.round(image.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("图片处理失败，请再试一次"));
+          return;
+        }
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", POSTER_QUALITY));
+      });
+      image.src = String(reader.result || "");
+    });
+    reader.readAsDataURL(file);
   });
-  reader.addEventListener("error", () => showToast("图片读取失败，请换一张试试"));
-  reader.readAsDataURL(file);
 }
 
 function updatePosterPreview(src) {
@@ -809,6 +858,14 @@ function relativeDateLabel(date) {
   const diff = Math.round((target - today) / 86400000);
   if (diff === 0) return "今天";
   return diff > 0 ? `${diff} 天后` : `${Math.abs(diff)} 天前`;
+}
+
+function withTimeout(promise, timeoutMs) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = window.setTimeout(() => reject(new Error("保存超时，请检查网络后再试")), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timer));
 }
 
 function formatNumber(value) {
