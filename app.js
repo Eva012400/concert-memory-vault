@@ -326,12 +326,19 @@ function bindForm() {
         if (error) throw error;
         savedConcert = { ...existing, ...payload };
       } else {
-        const { data: insertedConcert, error } = await withTimeout(
-          db.from(TABLE_NAME).insert(payload).select("id, created_at, updated_at").single(),
+        const now = new Date().toISOString();
+        const newConcert = {
+          id: createId(),
+          ...payload,
+          created_at: now,
+          updated_at: now
+        };
+        const { error } = await withTimeout(
+          db.from(TABLE_NAME).insert(newConcert),
           SAVE_TIMEOUT_MS
         );
         if (error) throw error;
-        savedConcert = { ...payload, ...insertedConcert };
+        savedConcert = newConcert;
       }
 
       syncConcertInState(savedConcert);
@@ -559,8 +566,8 @@ function renderSpendStats() {
   const avg = priced.length ? Math.round(total / priced.length) : 0;
   el.spendStats.innerHTML = `
     <h2>💰 消费统计</h2>
-    <div class="stat-row"><span>总价（折算展示）</span><strong>KRW ${formatNumber(total)}</strong></div>
-    <div class="stat-row"><span>平均票价</span><strong>KRW ${formatNumber(avg)}</strong></div>
+    <div class="stat-row"><span>总价（折合人民币）</span><strong>CNY ${formatNumber(total)}</strong></div>
+    <div class="stat-row"><span>平均票价</span><strong>CNY ${formatNumber(avg)}</strong></div>
   `;
 }
 
@@ -650,8 +657,8 @@ function makeWrappedSlides(items, year) {
     { kicker: `${year} · 年度回顾`, icon: "", title: String(items.length), body: `场现场演唱会`, extra: `<b class="wrap-pill">你去了 ${cities} 座城市 · ${countries} 个国家</b>`, ghost: "♫" },
     { kicker: "你的年度艺人", icon: "🎤", title: byArtist[0], body: `你看了 Ta ${byArtist[1]} 场 演唱会`, ghost: "🏆" },
     { kicker: "你最忙的月份", icon: "📅", title: month[0], body: `这个月你看了 ${month[1]} 场 演唱会`, ghost: "•" },
-    { kicker: "这一年你花在票上的钱", icon: "💰", title: `KRW ${formatNumber(spend)}`, body: `平均票价 KRW ${formatNumber(avg)}`, ghost: "◇" },
-    { kicker: "最舍得花钱的一票", icon: "💎", title: `KRW ${formatNumber(convertToDisplayCurrency(bestValue))}`, body: `${bestValue.artist} · ${bestValue.venue}`, extra: `<img class="wrap-thumb" src="${bestValue.poster}" alt="${bestValue.artist}" />`, ghost: "◇" },
+    { kicker: "这一年你花在票上的钱", icon: "💰", title: `CNY ${formatNumber(spend)}`, body: `平均票价 CNY ${formatNumber(avg)}`, ghost: "◇" },
+    { kicker: "最舍得花钱的一票", icon: "💎", title: `CNY ${formatNumber(convertToDisplayCurrency(bestValue))}`, body: `${bestValue.artist} · ${bestValue.venue}`, extra: `<img class="wrap-thumb" src="${bestValue.poster}" alt="${bestValue.artist}" />`, ghost: "◇" },
     { kicker: "你最常去的城市", icon: "📍", title: topEntries(countBy(items, "city"))[0][0], body: `${topEntries(countBy(items, "city"))[0][1]} 场现场`, ghost: "🎁" },
     { kicker: `${year} · 谢谢你热爱音乐`, icon: "🎁", title: `${items.length}场现场`, body: `${cities} 座城市 · ${countries} 个国家`, extra: `<b class="wrap-pill">年度艺人<br>${byArtist[0]}</b><small>私密演唱会记忆库 · Concert Memory</small>`, ghost: "🎁" }
   ];
@@ -868,6 +875,14 @@ function withTimeout(promise, timeoutMs) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timer));
 }
 
+function createId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (char) => {
+    const value = Number(char) ^ (window.crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(char) / 4)));
+    return value.toString(16);
+  });
+}
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString("zh-CN");
 }
@@ -889,7 +904,7 @@ function topEntries(counts) {
 }
 
 function convertToDisplayCurrency(item) {
-  const rates = { KRW: 1, JPY: 9, CNY: 185, USD: 1360, EUR: 1480, TWD: 42, HKD: 174, GBP: 1720 };
+  const rates = { KRW: 0.0053, JPY: 0.048, CNY: 1, USD: 7.1, EUR: 7.75, TWD: 0.22, HKD: 0.91, GBP: 9 };
   return Math.round((item.price || 0) * (rates[item.currency] || 1));
 }
 
