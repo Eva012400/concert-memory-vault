@@ -111,6 +111,54 @@ Site URL: https://eva012400.github.io/concert-memory-vault/
 Redirect URLs: https://eva012400.github.io/concert-memory-vault/**
 ```
 
+## Supabase Storage 配置
+
+本地上传的演唱会海报会保存到 Supabase Storage，数据库里的 `poster` 字段只保存图片 URL，避免保存记录时因为 base64 图片过大而超时。
+
+1. 进入 `Storage -> New bucket`，创建 bucket：
+
+```text
+concert-posters
+```
+
+建议设为 Public bucket。
+
+2. 如果需要用 SQL 创建 bucket 和权限策略，可以在 SQL Editor 执行：
+
+```sql
+insert into storage.buckets (id, name, public)
+values ('concert-posters', 'concert-posters', true)
+on conflict (id) do update set public = true;
+
+create policy "Users can upload their own posters"
+on storage.objects
+for insert
+to authenticated
+with check (
+  bucket_id = 'concert-posters'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Users can update their own posters"
+on storage.objects
+for update
+to authenticated
+using (
+  bucket_id = 'concert-posters'
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id = 'concert-posters'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Anyone can read poster images"
+on storage.objects
+for select
+to public
+using (bucket_id = 'concert-posters');
+```
+
 ## 文件结构
 
 ```text

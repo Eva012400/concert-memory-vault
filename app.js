@@ -1,5 +1,7 @@
 const TABLE_NAME = "concerts";
+const POSTER_BUCKET = "concert-posters";
 const SAVE_TIMEOUT_MS = 15000;
+const POSTER_UPLOAD_TIMEOUT_MS = 20000;
 const POSTER_MAX_WIDTH = 700;
 const POSTER_MAX_HEIGHT = 980;
 const POSTER_QUALITY = 0.72;
@@ -80,6 +82,7 @@ const state = {
   calendarMode: "month",
   wrappedYear: "2025",
   wrapSlide: 0,
+  posterBlob: null,
   isSaving: false
 };
 
@@ -293,7 +296,6 @@ function bindForm() {
     const editingId = clean(data.get("editingId"));
     const existing = state.concerts.find((item) => item.id === editingId);
     const memory = clean(data.get("memory"));
-    const poster = clean(data.get("poster")) || existing?.poster || posterFallback(clean(data.get("artist")));
     const payload = {
       user_id: state.user.id,
       artist: clean(data.get("artist")),
@@ -305,7 +307,7 @@ function bindForm() {
       price: Number(data.get("price")) || 0,
       currency: data.get("currency") || "KRW",
       memory: memory || null,
-      poster
+      poster: existing?.poster || posterFallback(clean(data.get("artist")))
     };
 
     if (!payload.artist || !payload.date || !payload.venue || !payload.city || !payload.country) {
@@ -318,6 +320,8 @@ function bindForm() {
 
     try {
       let savedConcert;
+      const recordId = existing?.id || createId();
+      payload.poster = await resolvePoster(recordId, payload.artist, existing);
       if (existing) {
         const { error } = await withTimeout(
           db.from(TABLE_NAME).update(payload).eq("id", existing.id).eq("user_id", state.user.id),
@@ -328,7 +332,7 @@ function bindForm() {
       } else {
         const now = new Date().toISOString();
         const newConcert = {
-          id: createId(),
+          id: recordId,
           ...payload,
           created_at: now,
           updated_at: now
@@ -714,6 +718,7 @@ function editConcert(id) {
   el.form.price.value = concert.price || "";
   el.form.currency.value = concert.currency || "KRW";
   el.form.memory.value = concert.memory || "";
+  state.posterBlob = null;
   updateFormAffordance();
   setScreen("add");
 }
@@ -735,6 +740,7 @@ function resetForm() {
   el.form.reset();
   el.form.editingId.value = "";
   el.form.poster.value = "";
+  state.posterBlob = null;
   updatePosterPreview("");
   updateFormAffordance();
 }
@@ -744,6 +750,7 @@ async function handlePosterUpload(event) {
   if (!file) {
     updatePosterPreview("");
     el.form.poster.value = "";
+    state.posterBlob = null;
     return;
   }
   if (!file.type.startsWith("image/")) {
@@ -753,13 +760,15 @@ async function handlePosterUpload(event) {
   }
   showToast("正在压缩海报…");
   try {
-    const dataUrl = await compressPoster(file);
-    el.form.poster.value = dataUrl;
-    updatePosterPreview(dataUrl);
+    const poster = await compressPoster(file);
+    state.posterBlob = poster.blob;
+    el.form.poster.value = "";
+    updatePosterPreview(poster.dataUrl);
     showToast("海报已准备好");
   } catch (error) {
     event.target.value = "";
     el.form.poster.value = "";
+    state.posterBlob = null;
     updatePosterPreview("");
     showToast(error.message || "图片读取失败，请换一张试试");
   }
@@ -785,12 +794,47 @@ function compressPoster(file) {
           return;
         }
         context.drawImage(image, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", POSTER_QUALITY));
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error("图片处理失败，请再试一次"));
+            return;
+          }
+          resolve({
+            blob,
+            dataUrl: canvas.toDataURL("image/jpeg", POSTER_QUALITY)
+          });
+        }, "image/jpeg", POSTER_QUALITY);
       });
       image.src = String(reader.result || "");
     });
     reader.readAsDataURL(file);
   });
+}
+
+async function resolvePoster(recordId, artist, existing) {
+  if (!state.posterBlob) return existing?.poster || posterFallback(artist);
+  showToast("正在上传海报…");
+  try {
+    return await uploadPoster(recordId, state.posterBlob);
+  } catch (error) {
+    showToast("海报上传失败，先保存默认海报");
+    return existing?.poster || posterFallback(artist);
+  }
+}
+
+async function uploadPoster(recordId, blob) {
+  const path = `${state.user.id}/${recordId}.jpg`;
+  const { error } = await withTimeout(
+    db.storage.from(POSTER_BUCKET).upload(path, blob, {
+      contentType: "image/jpeg",
+      upsert: true
+    }),
+    POSTER_UPLOAD_TIMEOUT_MS
+  );
+  if (error) throw error;
+  const { data } = db.storage.from(POSTER_BUCKET).getPublicUrl(path);
+  if (!data?.publicUrl) throw new Error("海报地址生成失败");
+  return data.publicUrl;
 }
 
 function updatePosterPreview(src) {
