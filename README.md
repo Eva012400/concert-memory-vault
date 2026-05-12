@@ -151,12 +151,6 @@ with check (
   bucket_id = 'concert-posters'
   and (storage.foldername(name))[1] = auth.uid()::text
 );
-
-create policy "Anyone can read poster images"
-on storage.objects
-for select
-to public
-using (bucket_id = 'concert-posters');
 ```
 
 ## 文件结构
