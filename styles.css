@@ -861,7 +861,9 @@ textarea::placeholder {
 .wrapped-story h2 {
   position: relative;
   z-index: 1;
-  font-size: clamp(3rem, 15vw, 5.1rem);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: clamp(2.45rem, 12vw, 4.7rem);
   line-height: 1;
 }
 
@@ -880,11 +882,14 @@ textarea::placeholder {
 .wrap-pill {
   display: inline-block;
   min-width: 180px;
+  max-width: 100%;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.18);
   padding: 14px 22px;
   color: white;
   font-size: 1.1rem;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
 }
 
 .wrap-thumb {
@@ -900,6 +905,91 @@ textarea::placeholder {
   display: block;
   color: rgba(255, 255, 255, 0.42);
   font-size: 0.95rem;
+}
+
+.quiz-story {
+  gap: 18px;
+}
+
+.quiz-options,
+.wrap-rank-list {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: min(100%, 330px);
+  gap: 10px;
+}
+
+.quiz-option {
+  display: grid;
+  gap: 4px;
+  min-height: 58px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  color: white;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.quiz-option span,
+.wrap-rank-row strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.quiz-option small {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.78rem;
+}
+
+.quiz-option.correct {
+  border-color: #ccffff;
+  background: rgba(204, 255, 255, 0.24);
+}
+
+.quiz-option.wrong {
+  border-color: #ffcccc;
+  background: rgba(255, 204, 204, 0.2);
+}
+
+.quiz-result {
+  display: block;
+  width: min(100%, 330px);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 12px 14px;
+  color: white;
+  line-height: 1.45;
+}
+
+.wrap-rank-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 9px 12px;
+  text-align: left;
+}
+
+.wrap-rank-row span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  font-weight: 900;
+}
+
+.wrap-rank-row small {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .wrap-controls {

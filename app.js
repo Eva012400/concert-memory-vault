@@ -82,6 +82,7 @@ const state = {
   calendarMode: "month",
   wrappedYear: "2025",
   wrapSlide: 0,
+  wrapQuizChoice: {},
   posterBlob: null,
   isSaving: false
 };
@@ -625,7 +626,7 @@ function renderWrapped() {
   const slide = slides[state.wrapSlide];
   el.wrappedCard.innerHTML = `
     <div class="wrap-dots">${slides.map((_, index) => `<span class="${index === state.wrapSlide ? "active" : ""}"></span>`).join("")}</div>
-    <article class="wrapped-story">
+    <article class="wrapped-story ${slide.type === "quiz" ? "quiz-story" : ""}">
       <span class="ghost-icon">${slide.ghost || "♪"}</span>
       <p class="wrap-kicker">${slide.kicker}</p>
       <div class="wrap-icon">${slide.icon}</div>
@@ -647,25 +648,134 @@ function renderWrapped() {
     state.wrapSlide += 1;
     renderWrapped();
   });
+  document.querySelectorAll("[data-quiz-choice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.wrapQuizChoice[state.wrappedYear] = button.dataset.quizChoice;
+      renderWrapped();
+    });
+  });
 }
 
 function makeWrappedSlides(items, year) {
   const byArtist = topEntries(countBy(items, "artist"))[0];
   const month = topEntries(countBy(items, (item) => `${monthOf(item.date)}月`))[0];
-  const bestValue = items.reduce((best, item) => convertToDisplayCurrency(item) > convertToDisplayCurrency(best) ? item : best, items[0]);
+  const pricedItems = items
+    .filter((item) => convertToDisplayCurrency(item) > 0)
+    .sort((a, b) => convertToDisplayCurrency(b) - convertToDisplayCurrency(a));
+  const bestValue = pricedItems[0] || items[0];
   const cities = unique(items.map((item) => item.city)).length;
   const countries = unique(items.map((item) => item.country)).length;
   const spend = items.reduce((sum, item) => sum + convertToDisplayCurrency(item), 0);
   const avg = Math.round(spend / items.length);
+  const venueTop = topEntries(countBy(items, "venue"))[0];
+  const memoryDigest = makeMemoryDigest(items);
+  const quiz = makeSpendQuiz(items, year);
   return [
     { kicker: `${year} · 年度回顾`, icon: "", title: String(items.length), body: `场现场演唱会`, extra: `<b class="wrap-pill">你去了 ${cities} 座城市 · ${countries} 个国家</b>`, ghost: "♫" },
     { kicker: "你的年度艺人", icon: "🎤", title: byArtist[0], body: `你看了 Ta ${byArtist[1]} 场 演唱会`, ghost: "🏆" },
+    { kicker: "记忆碎片生成的你", icon: "🧠", title: memoryDigest.title, body: memoryDigest.body, extra: `<b class="wrap-pill">${memoryDigest.badge}</b>`, ghost: "✦" },
     { kicker: "你最忙的月份", icon: "📅", title: month[0], body: `这个月你看了 ${month[1]} 场 演唱会`, ghost: "•" },
     { kicker: "这一年你花在票上的钱", icon: "💰", title: `CNY ${formatNumber(spend)}`, body: `平均票价 CNY ${formatNumber(avg)}`, ghost: "◇" },
+    quiz,
     { kicker: "最舍得花钱的一票", icon: "💎", title: `CNY ${formatNumber(convertToDisplayCurrency(bestValue))}`, body: `${bestValue.artist} · ${bestValue.venue}`, extra: `<img class="wrap-thumb" src="${bestValue.poster}" alt="${bestValue.artist}" />`, ghost: "◇" },
+    { kicker: "年度开销 Top 5", icon: "🏅", title: "票价榜", body: "这些现场负责了钱包的心跳声", extra: makeSpendTopList(pricedItems), ghost: "5" },
+    { kicker: "年度去最多的场馆", icon: "📍", title: venueTop[0], body: `${venueTop[1]} 场现场都在这里发生`, ghost: "TOP" },
     { kicker: "你最常去的城市", icon: "📍", title: topEntries(countBy(items, "city"))[0][0], body: `${topEntries(countBy(items, "city"))[0][1]} 场现场`, ghost: "🎁" },
     { kicker: `${year} · 谢谢你热爱音乐`, icon: "🎁", title: `${items.length}场现场`, body: `${cities} 座城市 · ${countries} 个国家`, extra: `<b class="wrap-pill">年度艺人<br>${byArtist[0]}</b><small>私密演唱会记忆库 · Concert Memory</small>`, ghost: "🎁" }
   ];
+}
+
+function makeMemoryDigest(items) {
+  const memories = items.map((item) => clean(item.memory)).filter(Boolean);
+  if (!memories.length) {
+    return {
+      title: "留白型观众",
+      body: "你把尖叫和心跳先存在脑内硬盘，文字还没来得及追上现场。",
+      badge: "今年的记忆碎片：待解锁"
+    };
+  }
+
+  const text = memories.join(" ");
+  const vibes = [
+    { name: "舞台爆破观察员", words: ["炸", "烟火", "鼓点", "开场", "惊艳"], line: "你很会捕捉现场爆发的一秒，喜欢把舞台的高光写成电影预告片。" },
+    { name: "灯海收藏家", words: ["灯", "亮", "星空", "腕带", "光"], line: "你对会发光的瞬间毫无抵抗力，年度关键词大概是：全场一起亮起来。" },
+    { name: "安可柔软派", words: ["安可", "轻", "声音", "特别", "满"], line: "你写到安静处反而最有力量，像把散场前那口舍不得呼出去的气保存了下来。" },
+    { name: "社交型快乐扩散器", words: ["交换", "陌生人", "大家", "一起", "共享"], line: "你记住的不只是台上，也有台下那些突然变熟的陌生人。" },
+    { name: "细节控鉴赏家", words: ["编舞", "舞台", "设计", "精致", "solo"], line: "你不是只看热闹的人，编舞、设计、solo 点位都逃不过你的年度审美审计。" }
+  ];
+  const best = vibes
+    .map((vibe) => ({
+      ...vibe,
+      score: vibe.words.reduce((total, word) => total + (text.includes(word) ? 1 : 0), 0)
+    }))
+    .sort((a, b) => b.score - a.score)[0];
+  const mostEmotional = memories.reduce((bestMemory, memory) => memory.length > bestMemory.length ? memory : bestMemory, "");
+  const quote = mostEmotional.length > 28 ? `${mostEmotional.slice(0, 28)}…` : mostEmotional;
+
+  return {
+    title: best.score ? best.name : "现场氛围捕手",
+    body: best.score ? best.line : "你的文字偏向画面感和情绪留存，像给每场演出贴了一张只有自己懂的便利贴。",
+    badge: `代表碎片：“${quote}”`
+  };
+}
+
+function makeSpendQuiz(items, year) {
+  const choices = makeQuizChoices(items, year);
+  const answer = choices[0];
+  const picked = state.wrapQuizChoice[year];
+  const shuffled = deterministicShuffle(choices, year);
+  const answered = Boolean(picked);
+  const options = shuffled.map((item) => {
+    const isPicked = picked === item.id;
+    const isAnswer = item.id === answer.id;
+    const className = ["quiz-option", answered && isAnswer ? "correct" : "", answered && isPicked && !isAnswer ? "wrong" : ""].filter(Boolean).join(" ");
+    return `<button class="${className}" type="button" data-quiz-choice="${item.id}" ${answered ? "disabled" : ""}>
+      <span>${item.artist}</span>
+      <small>${item.venue}</small>
+    </button>`;
+  }).join("");
+  const result = answered
+    ? `<b class="quiz-result">${picked === answer.id ? "猜对了！钱包本人表示被看穿。" : `正确答案是 ${answer.artist}，这一票赢得很有重量。`}</b>`
+    : "";
+
+  return {
+    type: "quiz",
+    kicker: "年度小 Quiz",
+    icon: "❓",
+    title: "猜一猜",
+    body: "今年开销最大的演唱会是哪一场？",
+    extra: `<div class="quiz-options">${options}</div>${result}`,
+    ghost: "?"
+  };
+}
+
+function makeQuizChoices(items, year) {
+  const ranked = [...items].sort((a, b) => convertToDisplayCurrency(b) - convertToDisplayCurrency(a));
+  const uniqueChoices = [];
+  ranked.forEach((item) => {
+    if (!uniqueChoices.some((choice) => choice.id === item.id)) uniqueChoices.push(item);
+  });
+  return uniqueChoices.slice(0, Math.min(4, uniqueChoices.length || 1));
+}
+
+function deterministicShuffle(items, seed) {
+  return [...items].sort((a, b) => seededScore(a.artist + a.date + seed) - seededScore(b.artist + b.date + seed));
+}
+
+function seededScore(value) {
+  return String(value).split("").reduce((score, char) => ((score * 31) + char.charCodeAt(0)) % 9973, 7);
+}
+
+function makeSpendTopList(items) {
+  if (!items.length) return `<b class="wrap-pill">还没有票价记录</b>`;
+  const rows = items.slice(0, 5).map((item, index) => `
+    <div class="wrap-rank-row">
+      <span>${index + 1}</span>
+      <strong>${item.artist}</strong>
+      <small>CNY ${formatNumber(convertToDisplayCurrency(item))}</small>
+    </div>
+  `).join("");
+  return `<div class="wrap-rank-list">${rows}</div>`;
 }
 
 function openDetail(concert) {
