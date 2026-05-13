@@ -85,6 +85,7 @@ const state = {
   wrapQuizChoice: {},
   posterBlob: null,
   posterFile: null,
+  isPreparingPoster: false,
   isSaving: false
 };
 
@@ -342,6 +343,10 @@ function bindForm() {
   el.form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (state.isSaving) return;
+    if (state.isPreparingPoster) {
+      showToast("海报还在处理中，等预览出现后再保存");
+      return;
+    }
     if (!state.user) {
       showToast("请先登录再保存");
       return;
@@ -433,11 +438,7 @@ function syncConcertInState(concert) {
 function setSavingState(isSaving) {
   state.isSaving = isSaving;
   el.form.classList.toggle("is-saving", isSaving);
-  el.saveActions.forEach((button) => {
-    button.disabled = isSaving;
-    button.setAttribute("aria-busy", String(isSaving));
-    button.textContent = isSaving ? "保存中…" : button.dataset.defaultText;
-  });
+  updateSaveActions();
 }
 
 function updateFormAffordance() {
@@ -448,7 +449,18 @@ function updateFormAffordance() {
       ? (isEditing ? "保存修改并关闭" : "保存这场演唱会")
       : (isEditing ? "更新" : "保存");
     button.dataset.defaultText = text;
-    if (!state.isSaving) button.textContent = text;
+  });
+  updateSaveActions();
+}
+
+function updateSaveActions() {
+  el.saveActions.forEach((button) => {
+    const disabled = state.isSaving || state.isPreparingPoster;
+    button.disabled = disabled;
+    button.setAttribute("aria-busy", String(disabled));
+    if (state.isSaving) button.textContent = "保存中…";
+    else if (state.isPreparingPoster) button.textContent = "处理海报中…";
+    else button.textContent = button.dataset.defaultText;
   });
 }
 
@@ -899,6 +911,9 @@ function editConcert(id) {
   el.form.currency.value = concert.currency || "KRW";
   el.form.memory.value = concert.memory || "";
   state.posterBlob = null;
+  state.posterFile = null;
+  state.isPreparingPoster = false;
+  el.posterInput.value = "";
   updateFormAffordance();
   setScreen("add");
 }
@@ -922,6 +937,8 @@ function resetForm() {
   el.form.poster.value = "";
   state.posterBlob = null;
   state.posterFile = null;
+  state.isPreparingPoster = false;
+  el.posterInput.value = "";
   updatePosterPreview("");
   updateFormAffordance();
 }
@@ -933,6 +950,8 @@ async function handlePosterUpload(event) {
     el.form.poster.value = "";
     state.posterBlob = null;
     state.posterFile = null;
+    state.isPreparingPoster = false;
+    updateSaveActions();
     return;
   }
   if (!file.type.startsWith("image/")) {
@@ -940,6 +959,8 @@ async function handlePosterUpload(event) {
     event.target.value = "";
     return;
   }
+  state.isPreparingPoster = true;
+  updateSaveActions();
   showToast("正在压缩海报…");
   try {
     const poster = await compressPoster(file);
@@ -950,6 +971,7 @@ async function handlePosterUpload(event) {
     };
     el.form.poster.value = "";
     updatePosterPreview(poster.dataUrl);
+    event.target.value = "";
     showToast("海报已准备好");
   } catch (error) {
     event.target.value = "";
@@ -958,6 +980,9 @@ async function handlePosterUpload(event) {
     state.posterFile = null;
     updatePosterPreview("");
     showToast(error.message || "图片读取失败，请换一张试试");
+  } finally {
+    state.isPreparingPoster = false;
+    updateSaveActions();
   }
 }
 
@@ -1005,8 +1030,8 @@ async function resolvePoster(recordId, artist, existing) {
 }
 
 async function uploadPoster(recordId, blob) {
-  const extension = fileExtension(state.posterFile?.name, blob.type);
-  const path = `${state.user.id}/${recordId}-${Date.now()}.${extension}`;
+  const extension = fileExtension(blob.type, state.posterFile?.name);
+  const path = `${state.user.id}/${recordId}-${uploadNonce()}.${extension}`;
   const { data, error } = await withTimeout(
     db.storage.from(POSTER_BUCKET).upload(path, blob, {
       cacheControl: "3600",
@@ -1113,15 +1138,21 @@ function inferCurrency(country) {
   return matches.find((item) => item.words.some((word) => value.includes(word)))?.currency || "";
 }
 
-function fileExtension(name, mimeType) {
-  const fromName = clean(name).split(".").pop()?.toLowerCase();
-  if (["jpg", "jpeg", "png", "webp"].includes(fromName)) return fromName === "jpeg" ? "jpg" : fromName;
+function fileExtension(mimeType, name) {
   const byType = {
     "image/png": "png",
     "image/webp": "webp",
     "image/jpeg": "jpg"
   };
-  return byType[mimeType] || "jpg";
+  if (byType[mimeType]) return byType[mimeType];
+  const fromName = clean(name).split(".").pop()?.toLowerCase();
+  if (["jpg", "jpeg", "png", "webp"].includes(fromName)) return fromName === "jpeg" ? "jpg" : fromName;
+  return "jpg";
+}
+
+function uploadNonce() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function saveErrorMessage(error) {
