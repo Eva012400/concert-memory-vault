@@ -84,6 +84,7 @@ const state = {
   wrapSlide: 0,
   wrapQuizChoice: {},
   posterBlob: null,
+  posterFile: null,
   isSaving: false
 };
 
@@ -91,6 +92,7 @@ const el = {
   authShell: document.querySelector("#authShell"),
   authForm: document.querySelector("#authForm"),
   signupButton: document.querySelector("#signupButton"),
+  authMessage: document.querySelector("#authMessage"),
   setupWarning: document.querySelector("#setupWarning"),
   app: document.querySelector(".phone-shell"),
   accountEmail: document.querySelector("#accountEmail"),
@@ -160,26 +162,64 @@ function bindAuth() {
     event.preventDefault();
     if (!isConfigured) return;
     const data = new FormData(el.authForm);
-    const { error } = await db.auth.signInWithPassword({
-      email: clean(data.get("email")),
-      password: String(data.get("password") || "")
-    });
-    if (error) showToast(error.message);
+    setAuthBusy(true, "正在登录…");
+    try {
+      const { data: authData, error } = await db.auth.signInWithPassword({
+        email: clean(data.get("email")),
+        password: String(data.get("password") || "")
+      });
+      if (error) throw error;
+      showAuthMessage("登录成功，正在打开你的记忆库…", "success");
+      if (authData.session) await applySession(authData.session);
+    } catch (error) {
+      showAuthMessage(authErrorMessage(error), "error");
+    } finally {
+      setAuthBusy(false);
+    }
   });
 
   el.signupButton.addEventListener("click", async () => {
     if (!isConfigured) return;
     const data = new FormData(el.authForm);
-    const { error } = await db.auth.signUp({
-      email: clean(data.get("email")),
-      password: String(data.get("password") || "")
-    });
-    showToast(error ? error.message : "注册成功，请检查邮箱或直接登录");
+    setAuthBusy(true, "正在注册…");
+    try {
+      const { error } = await db.auth.signUp({
+        email: clean(data.get("email")),
+        password: String(data.get("password") || "")
+      });
+      if (error) throw error;
+      showAuthMessage("注册成功，请检查邮箱或直接登录。", "success");
+    } catch (error) {
+      showAuthMessage(authErrorMessage(error), "error");
+    } finally {
+      setAuthBusy(false);
+    }
   });
 
   el.logoutButton.addEventListener("click", async () => {
     await db.auth.signOut();
   });
+}
+
+function setAuthBusy(isBusy, message = "") {
+  el.authForm.querySelectorAll("button").forEach((button) => {
+    button.disabled = isBusy;
+    button.setAttribute("aria-busy", String(isBusy));
+  });
+  if (message) showAuthMessage(message);
+}
+
+function showAuthMessage(message, type = "") {
+  el.authMessage.hidden = false;
+  el.authMessage.textContent = message;
+  el.authMessage.className = `auth-message ${type}`.trim();
+}
+
+function authErrorMessage(error) {
+  const message = error?.message || "登录失败，请再试一次";
+  if (/invalid login credentials/i.test(message)) return "邮箱或密码不正确，请检查后再试。";
+  if (/email not confirmed/i.test(message)) return "邮箱还没有完成验证，请先查看邮箱里的确认邮件。";
+  return message;
 }
 
 async function applySession(session) {
@@ -366,7 +406,7 @@ function bindForm() {
       setScreen("concerts");
       showToast(existing ? "已更新，卡片内容已保存" : "已保存，新卡片已加入");
     } catch (error) {
-      showToast(error.message || "保存失败，请再试一次");
+      showToast(saveErrorMessage(error));
     } finally {
       setSavingState(false);
     }
@@ -881,6 +921,7 @@ function resetForm() {
   el.form.editingId.value = "";
   el.form.poster.value = "";
   state.posterBlob = null;
+  state.posterFile = null;
   updatePosterPreview("");
   updateFormAffordance();
 }
@@ -891,6 +932,7 @@ async function handlePosterUpload(event) {
     updatePosterPreview("");
     el.form.poster.value = "";
     state.posterBlob = null;
+    state.posterFile = null;
     return;
   }
   if (!file.type.startsWith("image/")) {
@@ -902,6 +944,10 @@ async function handlePosterUpload(event) {
   try {
     const poster = await compressPoster(file);
     state.posterBlob = poster.blob;
+    state.posterFile = {
+      name: file.name,
+      type: poster.blob.type || "image/jpeg"
+    };
     el.form.poster.value = "";
     updatePosterPreview(poster.dataUrl);
     showToast("海报已准备好");
@@ -909,6 +955,7 @@ async function handlePosterUpload(event) {
     event.target.value = "";
     el.form.poster.value = "";
     state.posterBlob = null;
+    state.posterFile = null;
     updatePosterPreview("");
     showToast(error.message || "图片读取失败，请换一张试试");
   }
@@ -954,27 +1001,24 @@ function compressPoster(file) {
 async function resolvePoster(recordId, artist, existing) {
   if (!state.posterBlob) return existing?.poster || posterFallback(artist);
   showToast("正在上传海报…");
-  try {
-    return await uploadPoster(recordId, state.posterBlob);
-  } catch (error) {
-    showToast("海报上传失败，先保存默认海报");
-    return existing?.poster || posterFallback(artist);
-  }
+  return uploadPoster(recordId, state.posterBlob);
 }
 
 async function uploadPoster(recordId, blob) {
-  const path = `${state.user.id}/${recordId}.jpg`;
-  const { error } = await withTimeout(
+  const extension = fileExtension(state.posterFile?.name, blob.type);
+  const path = `${state.user.id}/${recordId}-${Date.now()}.${extension}`;
+  const { data, error } = await withTimeout(
     db.storage.from(POSTER_BUCKET).upload(path, blob, {
-      contentType: "image/jpeg",
-      upsert: true
+      cacheControl: "3600",
+      contentType: blob.type || state.posterFile?.type || "image/jpeg"
     }),
     POSTER_UPLOAD_TIMEOUT_MS
   );
   if (error) throw error;
-  const { data } = db.storage.from(POSTER_BUCKET).getPublicUrl(path);
-  if (!data?.publicUrl) throw new Error("海报地址生成失败");
-  return data.publicUrl;
+  const publicPath = data?.path || path;
+  const { data: publicData } = db.storage.from(POSTER_BUCKET).getPublicUrl(publicPath);
+  if (!publicData?.publicUrl) throw new Error("海报地址生成失败");
+  return publicData.publicUrl;
 }
 
 function updatePosterPreview(src) {
@@ -1067,6 +1111,23 @@ function inferCurrency(country) {
     { currency: "EUR", words: ["法国", "法國", "德国", "德國", "意大利", "西班牙", "欧洲", "europe", "france", "germany", "italy", "spain"] }
   ];
   return matches.find((item) => item.words.some((word) => value.includes(word)))?.currency || "";
+}
+
+function fileExtension(name, mimeType) {
+  const fromName = clean(name).split(".").pop()?.toLowerCase();
+  if (["jpg", "jpeg", "png", "webp"].includes(fromName)) return fromName === "jpeg" ? "jpg" : fromName;
+  const byType = {
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/jpeg": "jpg"
+  };
+  return byType[mimeType] || "jpg";
+}
+
+function saveErrorMessage(error) {
+  const message = error?.message || "保存失败，请再试一次";
+  if (state.posterBlob) return `海报上传失败：${message}`;
+  return message;
 }
 
 function clean(value) {

@@ -150,6 +150,24 @@ body::before {
   outline: none;
 }
 
+.auth-message {
+  margin-top: 16px;
+  border-radius: 14px;
+  background: var(--soft);
+  color: var(--accent-dark);
+  padding: 12px 14px;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.auth-message.error {
+  background: var(--pink);
+}
+
+.auth-message.success {
+  background: rgba(204, 255, 255, 0.8);
+}
+
 .setup-warning {
   margin-top: 18px;
   border-radius: 16px;
