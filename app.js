@@ -142,6 +142,7 @@ async function init() {
   bindFilters();
   bindCalendar();
   bindForm();
+  bindEmptyActions();
 
   if (!isConfigured) {
     el.setupWarning.hidden = false;
@@ -226,6 +227,15 @@ function bindNavigation() {
   }));
 }
 
+function bindEmptyActions() {
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-empty-add]");
+    if (!button) return;
+    resetForm();
+    setScreen("add");
+  });
+}
+
 function setScreen(screen) {
   state.screen = screen;
   el.screens.forEach((item) => item.classList.toggle("active", item.dataset.screen === screen));
@@ -284,6 +294,10 @@ function bindForm() {
 
   document.querySelector("#parsePaste").addEventListener("click", parsePastedText);
   el.posterInput.addEventListener("change", handlePosterUpload);
+  el.form.country.addEventListener("input", () => {
+    const currency = inferCurrency(el.form.country.value);
+    if (currency) el.form.currency.value = currency;
+  });
 
   el.form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -302,17 +316,17 @@ function bindForm() {
       artist: clean(data.get("artist")),
       tour: clean(data.get("tour")) || "Untitled Tour",
       date: data.get("date"),
-      venue: clean(data.get("venue")),
-      city: clean(data.get("city")),
-      country: clean(data.get("country")),
+      venue: clean(data.get("venue")) || "待补充",
+      city: clean(data.get("city")) || "待补充",
+      country: clean(data.get("country")) || "待补充",
       price: Number(data.get("price")) || 0,
       currency: data.get("currency") || "KRW",
       memory: memory || null,
       poster: existing?.poster || posterFallback(clean(data.get("artist")))
     };
 
-    if (!payload.artist || !payload.date || !payload.venue || !payload.city || !payload.country) {
-      showToast("请补全必填信息");
+    if (!payload.artist || !payload.date) {
+      showToast("先填艺人和日期就可以保存");
       return;
     }
 
@@ -391,7 +405,7 @@ function updateFormAffordance() {
   el.formTitle.textContent = isEditing ? "编辑演唱会" : "记录演唱会";
   el.saveActions.forEach((button) => {
     const text = button.classList.contains("submit-wide")
-      ? (isEditing ? "保存修改并关闭" : "保存这场演唱会 🎵")
+      ? (isEditing ? "保存修改并关闭" : "保存这场演唱会")
       : (isEditing ? "更新" : "保存");
     button.dataset.defaultText = text;
     if (!state.isSaving) button.textContent = text;
@@ -432,7 +446,9 @@ function renderConcerts() {
   const concerts = filteredConcerts();
   el.grid.innerHTML = "";
   if (!concerts.length) {
-    el.grid.innerHTML = `<div class="empty">没有匹配的演唱会</div>`;
+    el.grid.innerHTML = state.concerts.length
+      ? `<div class="empty">没有匹配的演唱会</div>`
+      : makeEmptyState("还没有演唱会记录", "先记下第一场现场，之后这里会变成你的私人票根墙。", "记录你的第一场演唱会");
     return;
   }
   concerts.forEach((concert) => {
@@ -454,6 +470,7 @@ function renderConcerts() {
         <p class="tour">${concert.tour}</p>
         <p class="venue"><span>${concert.city}</span><span class="venue-extra"> · ${concert.venue}</span></p>
         <p class="date-count">${relativeDateLabel(concert.date)}</p>
+        ${isIncomplete(concert) ? `<span class="incomplete-badge">待补充</span>` : ""}
       </div>
     `;
     button.addEventListener("click", () => openDetail(concert));
@@ -486,6 +503,9 @@ function renderCalendar() {
   el.dayEvents.innerHTML = "";
   if (state.calendarMode === "year") renderYearCalendar(year);
   else renderMonthCalendar(year, month);
+  if (!state.concerts.length) {
+    el.dayEvents.innerHTML = makeEmptyState("日历正在等第一张票", "添加演唱会后，每个日期都会亮起你的现场记忆。", "记录你的第一场演唱会");
+  }
 }
 
 function renderMonthCalendar(year, month) {
@@ -540,23 +560,33 @@ function renderDayEvents(events, key) {
 }
 
 function renderSummary() {
+  if (!state.concerts.length) {
+    el.insightGrid.innerHTML = makeChartUnlock();
+    el.totalShows.textContent = "0";
+    el.spendStats.innerHTML = makeEmptyState("消费图表待解锁", "添加 3 场演唱会后，这里会显示年度花费、平均票价和开销趋势。", "记录你的第一场演唱会");
+    el.rankingStats.innerHTML = makeEmptyState("排行还没有主角", "艺人、城市、国家排行会随着你的记录自动生成。", "添加演唱会");
+    el.countryStats.innerHTML = "";
+    el.monthStats.innerHTML = "";
+    el.yearStats.innerHTML = "";
+    return;
+  }
   const byArtist = countBy(state.concerts, "artist");
   const byCity = countBy(state.concerts, "city");
   const countries = unique(state.concerts.map((item) => item.country)).length;
   const busiest = topEntries(countBy(state.concerts, (item) => `${monthOf(item.date)}月`))[0];
 
   el.insightGrid.innerHTML = `
-    ${insight("🎤", "最爱艺人", topEntries(byArtist)[0]?.[0] || "暂无", `看了 ${topEntries(byArtist)[0]?.[1] || 0} 场`, true)}
-    ${insight("🗓", "最忙的月份", busiest?.[0] || "暂无", `${busiest?.[1] || 0} 场演出`)}
-    ${insight("📍", "最常去城市", topEntries(byCity)[0]?.[0] || "暂无", `${topEntries(byCity)[0]?.[1] || 0} 场`)}
-    ${insight("🌍", "足迹范围", `${countries || 0} 个国家/地区`, `${unique(state.concerts.map((item) => item.city)).length || 0} 座城市`)}
+    ${insight("♪", "最爱艺人", topEntries(byArtist)[0]?.[0] || "暂无", `看了 ${topEntries(byArtist)[0]?.[1] || 0} 场`, true)}
+    ${insight("CAL", "最忙的月份", busiest?.[0] || "暂无", `${busiest?.[1] || 0} 场演出`)}
+    ${insight("PIN", "最常去城市", topEntries(byCity)[0]?.[0] || "暂无", `${topEntries(byCity)[0]?.[1] || 0} 场`)}
+    ${insight("MAP", "足迹范围", `${countries || 0} 个国家/地区`, `${unique(state.concerts.map((item) => item.city)).length || 0} 座城市`)}
   `;
   el.totalShows.textContent = state.concerts.length;
   renderSpendStats();
   renderRankingStats(byArtist);
-  renderSimpleCount(el.countryStats, "🌍 足迹分布", countBy(state.concerts, "country"));
+  renderSimpleCount(el.countryStats, "足迹分布", countBy(state.concerts, "country"));
   renderMonthStats();
-  renderSimpleCount(el.yearStats, "📅 逐年记录", countBy(state.concerts, (item) => yearOf(item.date)));
+  renderSimpleCount(el.yearStats, "逐年记录", countBy(state.concerts, (item) => yearOf(item.date)));
 }
 
 function insight(icon, label, value, detail, featured = false) {
@@ -570,14 +600,14 @@ function renderSpendStats() {
   const total = priced.reduce((sum, item) => sum + convertToDisplayCurrency(item), 0);
   const avg = priced.length ? Math.round(total / priced.length) : 0;
   el.spendStats.innerHTML = `
-    <h2>💰 消费统计</h2>
+    <h2>消费统计</h2>
     <div class="stat-row"><span>总价（折合人民币）</span><strong>CNY ${formatNumber(total)}</strong></div>
     <div class="stat-row"><span>平均票价</span><strong>CNY ${formatNumber(avg)}</strong></div>
   `;
 }
 
 function renderRankingStats(byArtist) {
-  el.rankingStats.innerHTML = `<h2>🏆 艺人排行</h2>`;
+  el.rankingStats.innerHTML = `<h2>艺人排行</h2>`;
   topEntries(byArtist).forEach(([artist, count], index) => {
     el.rankingStats.insertAdjacentHTML("beforeend", `<div class="stat-row"><span><b class="rank-num">${index + 1}</b>${artist}</span><strong>${count} 场</strong></div>`);
   });
@@ -592,7 +622,7 @@ function renderSimpleCount(container, title, counts) {
 
 function renderMonthStats() {
   const counts = countBy(state.concerts, (item) => `${monthOf(item.date)}月`);
-  el.monthStats.innerHTML = `<h2>📆 月份分布</h2>`;
+  el.monthStats.innerHTML = `<h2>月份分布</h2>`;
   topEntries(counts).forEach(([name, count]) => {
     el.monthStats.insertAdjacentHTML("beforeend", `<div class="stat-row"><span>${name}</span><strong>${count}</strong></div>`);
   });
@@ -616,8 +646,8 @@ function renderWrapped() {
   });
 
   const items = state.concerts.filter((item) => String(yearOf(item.date)) === state.wrappedYear);
-  if (!items.length) {
-    el.wrappedCard.innerHTML = `<div class="wrapped-empty"><span class="note">♫</span><h3>${state.wrappedYear} 年暂无记录</h3><p>记录这一年的演唱会后，这里会生成你的专属年终回顾。</p></div>`;
+  if (items.length < 5) {
+    el.wrappedCard.innerHTML = makeWrappedLock(state.wrappedYear, items.length);
     return;
   }
 
@@ -663,8 +693,8 @@ function makeWrappedSlides(items, year) {
     .filter((item) => convertToDisplayCurrency(item) > 0)
     .sort((a, b) => convertToDisplayCurrency(b) - convertToDisplayCurrency(a));
   const bestValue = pricedItems[0] || items[0];
-  const cities = unique(items.map((item) => item.city)).length;
-  const countries = unique(items.map((item) => item.country)).length;
+  const cities = unique(items.map((item) => item.city).filter((value) => value !== "待补充")).length;
+  const countries = unique(items.map((item) => item.country).filter((value) => value !== "待补充")).length;
   const spend = items.reduce((sum, item) => sum + convertToDisplayCurrency(item), 0);
   const avg = Math.round(spend / items.length);
   const venueTop = topEntries(countBy(items, "venue"))[0];
@@ -672,15 +702,15 @@ function makeWrappedSlides(items, year) {
   const quiz = makeSpendQuiz(items, year);
   return [
     { kicker: `${year} · 年度回顾`, icon: "", title: String(items.length), body: `场现场演唱会`, extra: `<b class="wrap-pill">你去了 ${cities} 座城市 · ${countries} 个国家</b>`, ghost: "♫" },
-    { kicker: "你的年度艺人", icon: "🎤", title: byArtist[0], body: `你看了 Ta ${byArtist[1]} 场 演唱会`, ghost: "🏆" },
-    { kicker: "记忆碎片生成的你", icon: "🧠", title: memoryDigest.title, body: memoryDigest.body, extra: `<b class="wrap-pill">${memoryDigest.badge}</b>`, ghost: "✦" },
-    { kicker: "你最忙的月份", icon: "📅", title: month[0], body: `这个月你看了 ${month[1]} 场 演唱会`, ghost: "•" },
-    { kicker: "这一年你花在票上的钱", icon: "💰", title: `CNY ${formatNumber(spend)}`, body: `平均票价 CNY ${formatNumber(avg)}`, ghost: "◇" },
+    { kicker: "你的年度艺人", icon: "♪", title: byArtist[0], body: `你看了 Ta ${byArtist[1]} 场 演唱会`, ghost: "TOP" },
+    { kicker: "记忆碎片生成的你", icon: "MEM", title: memoryDigest.title, body: memoryDigest.body, extra: `<b class="wrap-pill">${memoryDigest.badge}</b>`, ghost: "✦" },
+    { kicker: "你最忙的月份", icon: "CAL", title: month[0], body: `这个月你看了 ${month[1]} 场 演唱会`, ghost: "•" },
+    { kicker: "这一年你花在票上的钱", icon: "CNY", title: `CNY ${formatNumber(spend)}`, body: `平均票价 CNY ${formatNumber(avg)}`, ghost: "◇" },
     quiz,
-    { kicker: "最舍得花钱的一票", icon: "💎", title: `CNY ${formatNumber(convertToDisplayCurrency(bestValue))}`, body: `${bestValue.artist} · ${bestValue.venue}`, extra: `<img class="wrap-thumb" src="${bestValue.poster}" alt="${bestValue.artist}" />`, ghost: "◇" },
-    { kicker: "年度开销 Top 5", icon: "🏅", title: "票价榜", body: "这些现场负责了钱包的心跳声", extra: makeSpendTopList(pricedItems), ghost: "5" },
-    { kicker: "年度去最多的场馆", icon: "📍", title: venueTop[0], body: `${venueTop[1]} 场现场都在这里发生`, ghost: "TOP" },
-    { kicker: "你最常去的城市", icon: "📍", title: topEntries(countBy(items, "city"))[0][0], body: `${topEntries(countBy(items, "city"))[0][1]} 场现场`, ghost: "🎁" },
+    { kicker: "最舍得花钱的一票", icon: "$", title: `CNY ${formatNumber(convertToDisplayCurrency(bestValue))}`, body: `${bestValue.artist} · ${bestValue.venue}`, extra: `<img class="wrap-thumb" src="${bestValue.poster}" alt="${bestValue.artist}" />`, ghost: "◇" },
+    { kicker: "年度开销 Top 5", icon: "#5", title: "票价榜", body: "这些现场负责了钱包的心跳声", extra: makeSpendTopList(pricedItems), ghost: "5" },
+    { kicker: "年度去最多的场馆", icon: "PIN", title: venueTop[0], body: `${venueTop[1]} 场现场都在这里发生`, ghost: "TOP" },
+    { kicker: "你最常去的城市", icon: "MAP", title: topEntries(countBy(items, "city"))[0][0], body: `${topEntries(countBy(items, "city"))[0][1]} 场现场`, ghost: "CITY" },
     { kicker: `${year} · 谢谢你热爱音乐`, icon: "🎁", title: `${items.length}场现场`, body: `${cities} 座城市 · ${countries} 个国家`, extra: `<b class="wrap-pill">年度艺人<br>${byArtist[0]}</b><small>私密演唱会记忆库 · Concert Memory</small>`, ghost: "🎁" }
   ];
 }
@@ -741,7 +771,7 @@ function makeSpendQuiz(items, year) {
   return {
     type: "quiz",
     kicker: "年度小 Quiz",
-    icon: "❓",
+    icon: "?",
     title: "猜一猜",
     body: "今年开销最大的演唱会是哪一场？",
     extra: `<div class="quiz-options">${options}</div>${result}`,
@@ -792,8 +822,8 @@ function openDetail(concert) {
       <p class="detail-date">${formatDateLong(concert.date)}</p>
       <div class="detail-divider"></div>
       <dl class="detail-list">
-        <div><dt>📍 场馆</dt><dd>${concert.venue}，${concert.city}，${concert.country}</dd></div>
-        <div><dt>💰 票价</dt><dd>${concert.currency} ${formatNumber(concert.price)}</dd></div>
+        <div><dt>场馆</dt><dd>${formatLocation(concert)}</dd></div>
+        <div><dt>票价</dt><dd>${concert.currency} ${formatNumber(concert.price)}</dd></div>
       </dl>
       <div class="detail-divider"></div>
       <section class="memory-box">
@@ -822,9 +852,9 @@ function editConcert(id) {
   el.form.artist.value = concert.artist || "";
   el.form.tour.value = concert.tour || "";
   el.form.date.value = concert.date || "";
-  el.form.venue.value = concert.venue || "";
-  el.form.city.value = concert.city || "";
-  el.form.country.value = concert.country || "";
+  el.form.venue.value = concert.venue === "待补充" ? "" : concert.venue || "";
+  el.form.city.value = concert.city === "待补充" ? "" : concert.city || "";
+  el.form.country.value = concert.country === "待补充" ? "" : concert.country || "";
   el.form.price.value = concert.price || "";
   el.form.currency.value = concert.currency || "KRW";
   el.form.memory.value = concert.memory || "";
@@ -972,6 +1002,71 @@ function parsePastedText() {
     el.form.price.value = price[2].replaceAll(",", "");
   }
   showToast("已尝试填入表单");
+}
+
+function makeEmptyState(title, body, action) {
+  return `<article class="empty-state">
+    <div class="empty-illustration" aria-hidden="true">
+      <span></span><span></span><span></span>
+    </div>
+    <h3>${title}</h3>
+    <p>${body}</p>
+    <button type="button" data-empty-add>${action}</button>
+  </article>`;
+}
+
+function makeChartUnlock() {
+  return `<article class="insight chart-unlock">
+    <div class="mini-chart" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <span>图表预告</span>
+    <strong>添加 3 场后解锁</strong>
+    <small>消费趋势、艺人排行、城市足迹都会在这里长出来。</small>
+  </article>
+  <article class="insight chart-unlock">
+    <div class="mini-chart soft" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+    <span>年度回顾</span>
+    <strong>5 场生成 Wrapped</strong>
+    <small>攒够记录后，会生成可以翻页的音乐年终总结。</small>
+  </article>`;
+}
+
+function makeWrappedLock(year, count) {
+  const needed = Math.max(0, 5 - count);
+  const progress = Math.min(100, Math.round((count / 5) * 100));
+  return `<article class="wrapped-lock">
+    <div class="lock-art" aria-hidden="true">
+      <span></span>
+    </div>
+    <p class="wrap-kicker">${year} · 年度回顾</p>
+    <h2>再记录 ${needed} 场</h2>
+    <p>你的 Wrapped 会在 5 场演唱会后生成。现在已经收集 ${count} / 5 场。</p>
+    <div class="progress-track" aria-label="年度回顾生成进度"><span style="width: ${progress}%"></span></div>
+    <button type="button" data-empty-add>继续添加演唱会</button>
+  </article>`;
+}
+
+function isIncomplete(concert) {
+  return [concert.venue, concert.city, concert.country].some((value) => !value || value === "待补充");
+}
+
+function formatLocation(concert) {
+  const parts = [concert.venue, concert.city, concert.country].filter((value) => value && value !== "待补充");
+  return parts.length ? parts.join("，") : "待补充";
+}
+
+function inferCurrency(country) {
+  const value = clean(country).toLowerCase();
+  const matches = [
+    { currency: "CNY", words: ["中国", "大陆", "china", "cn"] },
+    { currency: "HKD", words: ["香港", "hong kong", "hk"] },
+    { currency: "TWD", words: ["台湾", "台灣", "taiwan", "tw"] },
+    { currency: "JPY", words: ["日本", "japan", "jp"] },
+    { currency: "KRW", words: ["韩国", "韓國", "korea", "kr"] },
+    { currency: "USD", words: ["美国", "美國", "usa", "us", "america"] },
+    { currency: "GBP", words: ["英国", "英國", "uk", "britain"] },
+    { currency: "EUR", words: ["法国", "法國", "德国", "德國", "意大利", "西班牙", "欧洲", "europe", "france", "germany", "italy", "spain"] }
+  ];
+  return matches.find((item) => item.words.some((word) => value.includes(word)))?.currency || "";
 }
 
 function clean(value) {
